@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en-US">
+
+<head>
+    <title>Atmospheric Query and Retrieval Tool</title>
+    <meta charset="UTF-8" />
+
+
+    <script src="http://code.jquery.com/jquery-latest.min.js" type="text/javascript"></script>
+    <script src="http://code.jquery.com/ui/1.10.1/jquery-ui.js"></script>
+
+
+
+    <link rel="stylesheet" href="query.css">
+
+    <script>
+        var searchMenuOptions = {};
+        var results = {};
+        var resultCount = 0;
+        var page = 1;
+        var totalPages = 1;
+
+        $(document).ready(function () {
+            var searchMenu = $(".cssmenu");
+            var currentPage = $(".page");
+            var resultTable = $(".resultTable");
+            var data = $.getJSON("sample.json", function () {
+            })
+            .done(function( data ) {
+                $.each(data, function (pageSection, contents) {
+                    if (pageSection == "SearchCatagories") {
+
+                        $.each(contents, function (search, searchOptions) {
+                            search = search.replace(/\_/g, " ");
+
+                            searchMenu.append('<li id="' + search + '" onclick="getDropDown(this.id)"><a href="#">' + search + '</a></li>');
+                            searchMenuOptions[search] = searchOptions;
+                        });
+                    } else if (pageSection == "QueryResults") {
+                        results = {};
+                        resultCount = 0;
+                        var view = [0, 0];
+                        $.each(contents, function (queryResult, field) {
+                            if (queryResult == "Length") {
+                                resultCount = field;
+                            } else if (queryResult == "View") {
+                                view = field;
+                            } else if (queryResult == "Results") {
+                                resultTable.empty();
+                                resultTable.append('<tr><td>Results</td></tr>');
+
+                                $.each(field, function (entryCount, fullResult) {
+
+                                    $.each(fullResult, function (name, metadata) {
+                                        resultTable.append('<tr><td onclick="getDetails(this.id)" id="' + name + '">' + name + '</td></tr>');
+                                        results[name] = metadata;
+                                    });
+
+                                });
+                            } else {
+                                console.error("Unknown field " + queryResult);
+                            }
+                        });
+
+                        // Calculating the current page and the view
+                        var diff = view[1] - view[0] + 1;
+                        if (diff > 0) {
+                            totalPages = Math.ceil(resultCount / diff);
+                            page = Math.ceil(view[0] / diff) + 1;
+                        } else {
+                            totalPages = 1;
+                            page = 1;
+                        }
+
+                        if (page != 1) {
+                            console.log(view[0]);
+                            currentPage.append('<span id="' + (view[0] - 1) + '" onclick="getPage(this.id)"><a href="#"><</a>');
+                        }
+
+                        // This section of code creates the paging for the results.
+                        // To prevent it from having a 1000+ pages, it will only show the 5 pages before/after
+                        // the current page and the total pages (expect users not to really jump around a lot).
+                        for (var i = 0; i < totalPages; ++i) {
+                            if (i + 1 == 1 || i + 1 == page || i + 1 == totalPages || (i + 1 < page && i + 4 > page) || (i + 1 > page && i - 4 < page)) { // in our current page range
+                                currentPage.append(' ');
+                                currentPage.append('<span id="' + (i + 1) + '" onclick="getPage(this.id)">');
+                                if (i + 1 != page) {
+                                    currentPage.append('<a href="#">' + (i + 1) + '</a>')
+                                } else {
+                                    currentPage.append(i + 1);
+                                }
+                                currentPage.append('</span>');
+                            } else { // Need to skip ahead
+                                currentPage.append(' ...');
+                                if (i == page + 5) {
+                                    i = totalPages - 2;
+                                } else if (i < page - 7) {
+                                    i = page - 6;
+                                }
+                            }
+                        }
+                        if (page != totalPages) {
+                            currentPage.append(' <span id="' + (page + diff) + '" onclick="getPage(this.id)"><a href="#">></a>');
+                        }
+                    }
+                });
+            })();
+        });
+
+        var state = "";
+
+        function getDropDown(str) {
+            var searchMenu = $(".cssmenu");
+            if (str == state) {
+                state = "";
+                searchMenu.find("#" + str).find("#options_" + str).empty();
+            } else {
+                state = str;
+
+                $.each(searchMenuOptions, function (search, fields) {
+                    if (search === str) {
+                        searchMenu.find("#" + search).append('<ul id="options_' + search + '" class="sub-menu">');
+                        for (var i = 0; i < fields.length; ++i) {
+                            searchMenu.find("#options_" + search).append('<li><a href="#">' + fields[i] + '</a></li>');
+                        }
+                        searchMenu.append('</ul>');
+                    } else {
+                        var ul = $("options_" + search);
+                        ul.empty();
+                        searchMenu.find("#" + search).find("#options_" + search).empty();
+                    }
+                });
+            }
+        }
+
+        function getPage(str) {
+            // @todo
+        }
+
+        function getDetails(str) {
+            // @todo: Identify the correct way to integrate the download backend so that we know who
+            // we should be pointing at.
+
+            var details = "<h2>" + str + "<h2>";
+
+            details += '<form action="getDownload()"><input type="submit" value="Download"></form>';
+            details += "<table>";
+            $.each(results[str], function (fieldName, field) {
+                console.log(fieldName);
+
+                details += "<tr>"
+                details += "<td>" + fieldName + "</td>";
+                if (typeof field === 'object') {
+                    details += "<td><table>";
+                    $.each(field, function (name, fields) {
+                        details += '<tr><td>' + name + '</td><td>' + fields + '<td></tr>';
+                    });
+                    details += "</table></td>";
+                } else {
+                    details += "<td>" + field + "</td>"
+                }
+                details += "</tr>"
+
+            });
+            details += "</table>";
+            details += '<form action="getDownload()"><input type="submit" value="Download"></form>';
+
+            var detailsWindow = window.open("", str, "width=400, height=600, toolbar=no, menubar=no");
+            detailsWindow.document.write(details);
+            detailsWindow.onload = function () { // of course you can use other onload-techniques
+                jQuery(detailsWindow.document.head).append('<script>function getDownload() {alert("Yay";)}</' + "script>"); // or any other dom manipulation
+            }
+
+            //window.open("details.html", "_blank", "toolbar=no, scrollbars=yes, resizable=yes, top=500, left=500, width=400, height=400");*/
+        }
+    </script>
+</head>
+
+<body id="body">
+    <header>
+        <h1>Atmospheric Query and Retrieval Tool</h1>
+    </header>
+
+    <ul class='cssmenu'>
+
+    </ul>
+
+    <div class="autocomplete">
+        <form action="submit()">
+            <input type="text" name="autocomplete" class="textbox" id="autocomplete" placeholder="cmap" width="800px">
+            <input type="submit" value="Search">
+        </form>
+    </div>
+    <table class="resultTable">
+
+
+    </table>
+    <div class="page"></div>
+
+</body>
+
+</html>
