@@ -21,13 +21,25 @@
 
 #include <ChronoSync/socket.hpp>
 #include <ndn-cxx/face.hpp>
+#include <json/value.h>
+#include <libpq-fe.h>
 
 using namespace std;
 using namespace ndn;
 
 int main()
 {
-  Face face;
-  shared_ptr<chronosync::Socket> socket;
+  Face face; // use ndn-cxx
+  shared_ptr<chronosync::Socket> socket; // use ChronoSync
+
+  Json::Value root; // use jsoncpp
+  PGconn *conn; // use libpq
+  // Make a connection to the database
+  conn = PQconnectdb("dbname=bedrock sslmode=disable");
+  if (PQstatus(conn) != CONNECTION_OK) {
+    cout << "Connection to database failed: "
+         << PQerrorMessage(conn) << endl;
+  }
+
   return 0;
 }

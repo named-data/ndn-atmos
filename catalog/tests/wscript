@@ -26,11 +26,11 @@ top = '..'
 def build(bld):
     # unit test objects
     unit_tests_objects = bld(
-        target="unit-test-objects",
-        name="unit-test-objects",
+        target='unit-test-objects',
+        name='unit-test-objects',
         features="cxx",
         source=bld.path.ant_glob(['unit-tests/**/*.cpp']),
-        use='ndn-cxx BOOST',
+        use='NDN_CXX BOOST ndn_atmos_objects',
         includes='.',
         install_path=None)
 
@@ -39,6 +39,6 @@ def build(bld):
         target='../unit-tests',
         name='unit-tests-main-unit',
         source="main.cpp",
-        use='ndn-cxx unit-test-objects BOOST',
+        use='unit-test-objects',
         install_path=None)
 

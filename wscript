@@ -54,8 +54,14 @@ def configure(conf):
     conf.check_cfg(package='libndn-cxx', args=['--cflags', '--libs'],
                    uselib_store='NDN_CXX', mandatory=True)
 
-    conf.check_cfg (package='ChronoSync', args=['ChronoSync >= 0.1', '--cflags', '--libs'],
-                    uselib_store='SYNC', mandatory=True)
+    conf.check_cfg(package='ChronoSync', args=['ChronoSync >= 0.1', '--cflags', '--libs'],
+                   uselib_store='SYNC', mandatory=True)
+
+    conf.check_cfg(package='jsoncpp', args=['--cflags', '--libs'],
+                   uselib_store='JSON', mandatory=True)
+
+    conf.check_cfg(package='libpq', args=['--cflags', '--libs'],
+                   uselib_store='SQL_PQ', mandatory=True)
 
     boost_libs = 'system random thread filesystem'
 
@@ -74,12 +80,22 @@ def configure(conf):
     conf.write_config_header('config.h')
 
 def build (bld):
+    ndn_atmos_objects = bld(
+        target='ndn_atmos_objects',
+        name='ndn_atmos_objects',
+        features='cxx',
+        source=bld.path.ant_glob(['catalog/src/*.cpp'],
+                                 excl=['catalog/src/main.cpp']),
+        use='NDN_CXX BOOST SYNC JSON SQL_PQ',
+        includes='catalog/src .',
+        export_includes='catalog/src .'
+    )
+
     bld(
-        target="bin/ndn-atmos",
-        features=['cxx', 'cxxprogram'],
-        source=bld.path.ant_glob(['catalog/src/*.cpp']),
-        includes="catalog/src .",
-        use="ndn-cxx BOOST SYNC"
+        target='bin/ndn-atmos',
+        features='cxx cxxprogram',
+        source='catalog/src/main.cpp',
+        use='ndn_atmos_objects'
     )
 
     # Catalog unit tests

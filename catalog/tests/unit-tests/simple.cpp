@@ -20,6 +20,11 @@
  */
 
 #include <boost/test/unit_test.hpp>
+#include <libpq-fe.h>
+#include <json/value.h>
+#include <json/writer.h>
+#include <json/reader.h>
+#include <iostream>
 
 namespace NdnAtmos {
 namespace test {
@@ -29,6 +34,30 @@ BOOST_AUTO_TEST_SUITE(MasterSuite)
 BOOST_AUTO_TEST_CASE(SimpleTest)
 {
   BOOST_CHECK(0==0);
+}
+
+BOOST_AUTO_TEST_CASE(DBTest)
+{
+  PGconn *conn;
+  conn = PQconnectdb("dbname=test sslmode=disable");
+  BOOST_CHECK_EQUAL(PQstatus(conn) != CONNECTION_OK, true);
+}
+
+BOOST_AUTO_TEST_CASE(JsonTest)
+{
+  Json::Value original;
+  original["command"] = "test";
+
+  Json::FastWriter fastWriter;
+  std::string jsonMessage = fastWriter.write(original);
+
+  Json::Value parsedFromString;
+  Json::Reader reader;
+  bool result;
+  BOOST_CHECK_EQUAL(result = reader.parse(jsonMessage, parsedFromString), true);
+  if (result) {
+    BOOST_CHECK_EQUAL(original, parsedFromString);
+  }
 }
 
 BOOST_AUTO_TEST_SUITE_END()
