@@ -22,7 +22,7 @@
 #include <ChronoSync/socket.hpp>
 #include <ndn-cxx/face.hpp>
 #include <json/value.h>
-#include <libpq-fe.h>
+#include <mysql.h>
 
 using namespace std;
 using namespace ndn;
@@ -33,12 +33,11 @@ int main()
   shared_ptr<chronosync::Socket> socket; // use ChronoSync
 
   Json::Value root; // use jsoncpp
-  PGconn *conn; // use libpq
-  // Make a connection to the database
-  conn = PQconnectdb("dbname=bedrock sslmode=disable");
-  if (PQstatus(conn) != CONNECTION_OK) {
-    cout << "Connection to database failed: "
-         << PQerrorMessage(conn) << endl;
+  MYSQL *con = mysql_init(NULL);
+  if (con == NULL)
+  {
+    fprintf(stderr, "%s\n", mysql_error(con));
+    return 1;
   }
 
   return 0;

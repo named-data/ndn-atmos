@@ -14,4 +14,4 @@ Dependencies
  2. ChronoSync v0.2 (https://github.com/named-data/ChronoSync.git)
  3. boost (Minimum required boost version is 1.48.0)
  4. jsoncpp 1.6.0 (https://github.com/open-source-parsers/jsoncpp.git)
- 5. postgresql 9.4.1 (http://www.postgresql.org)
+ 5. mysql 5.6.23 (http://www.mysql.com/)

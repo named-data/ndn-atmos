@@ -20,10 +20,10 @@
  */
 
 #include <boost/test/unit_test.hpp>
-#include <libpq-fe.h>
 #include <json/value.h>
 #include <json/writer.h>
 #include <json/reader.h>
+#include <mysql.h>
 #include <iostream>
 
 namespace NdnAtmos {
@@ -38,9 +38,8 @@ BOOST_AUTO_TEST_CASE(SimpleTest)
 
 BOOST_AUTO_TEST_CASE(DBTest)
 {
-  PGconn *conn;
-  conn = PQconnectdb("dbname=test sslmode=disable");
-  BOOST_CHECK_EQUAL(PQstatus(conn) != CONNECTION_OK, true);
+  MYSQL *conn = mysql_init(NULL);
+  BOOST_CHECK_EQUAL(conn == NULL, false);
 }
 
 BOOST_AUTO_TEST_CASE(JsonTest)

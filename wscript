@@ -49,6 +49,8 @@ def configure(conf):
     if not os.environ.has_key('PKG_CONFIG_PATH'):
         os.environ['PKG_CONFIG_PATH'] = ':'.join([
             '/usr/local/lib/pkgconfig',
+            '/usr/local/lib32/pkgconfig',
+            '/usr/local/lib64/pkgconfig',
             '/opt/local/lib/pkgconfig'])
 
     conf.check_cfg(package='libndn-cxx', args=['--cflags', '--libs'],
@@ -60,8 +62,8 @@ def configure(conf):
     conf.check_cfg(package='jsoncpp', args=['--cflags', '--libs'],
                    uselib_store='JSON', mandatory=True)
 
-    conf.check_cfg(package='libpq', args=['--cflags', '--libs'],
-                   uselib_store='SQL_PQ', mandatory=True)
+    conf.check_cfg(path='mysql_config', args=['--cflags', '--libs'], package='',
+                   uselib_store='MYSQL', mandatory=True)
 
     boost_libs = 'system random thread filesystem'
 
@@ -84,9 +86,9 @@ def build (bld):
         target='ndn_atmos_objects',
         name='ndn_atmos_objects',
         features='cxx',
-        source=bld.path.ant_glob(['catalog/src/*.cpp'],
+        source=bld.path.ant_glob(['catalog/src/**/*.cpp'],
                                  excl=['catalog/src/main.cpp']),
-        use='NDN_CXX BOOST SYNC JSON SQL_PQ',
+        use='NDN_CXX BOOST SYNC JSON MYSQL',
         includes='catalog/src .',
         export_includes='catalog/src .'
     )
