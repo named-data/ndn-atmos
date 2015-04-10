@@ -37,10 +37,9 @@
 #include <ndn-cxx/security/key-chain.hpp>
 #include <ndn-cxx/util/time.hpp>
 #include <ndn-cxx/encoding/encoding-buffer.hpp>
+#include <ndn-cxx/util/in-memory-storage-lru.hpp>
 
 #include "mysql/mysql.h"
-
-#include <iostream>
 
 #include <map>
 #include <memory>
@@ -104,6 +103,7 @@ private:
    * @param face:            Face that will be used for NDN communications
    * @param keyChain:        KeyChain to sign query responses and evaluate the incoming query
    *                          and ChronoSync requests against
+   * @param interest:        Interest that needs to be handled      
    * @param databaseHandler: <typename DatabaseHandler> to the database that stores our catalog
    */
   void
@@ -143,11 +143,28 @@ private:
                  const ndn::Name& segmentPrefix, const char* payload, size_t payloadLength,
                  uint64_t segmentNo, bool isFinalBlock);
 
+  /**
+   * Helper function that generates query results from a Json query
+   *
+   * @param face:            Face that will be used for NDN communications
+   * @param jsonQuery:       String containing the JSON query
+   * @param keyChain:        KeyChain to sign query responses and evaluate the incoming query
+   *                          and ChronoSync requests against
+   * @param interest:        Interest that needs to be handled
+   * @param databaseHandler: <typename DatabaseHandler> to the database that stores our catalog
+   */
+  void
+  runJsonQuery(std::shared_ptr<ndn::Face> face, std::shared_ptr<ndn::KeyChain> keyChain,
+               std::shared_ptr<const ndn::Interest> interest, const std::string& jsonQuery,
+               std::shared_ptr<DatabaseHandler> databaseHandler);
+
   // mutex to control critical sections
   std::mutex m_mutex;
   // @{ needs m_mutex protection
   // The Queries we are currently writing to
   std::map<std::string, std::shared_ptr<ndn::Data>> m_activeQueryToFirstResponse;
+
+  ndn::util::InMemoryStorageLru m_cache;
   // @}
 };
 
@@ -158,22 +175,23 @@ QueryAdapter<DatabaseHandler>::QueryAdapter(std::shared_ptr<ndn::Face> face,
                            std::shared_ptr<DatabaseHandler> databaseHandler,
                            const ndn::Name& prefix)
   : atmos::util::CatalogAdapter<DatabaseHandler>(face, keyChain, databaseHandler, prefix)
+  , m_cache(100000000)
 {
-  face->setInterestFilter(ndn::InterestFilter(ndn::Name(prefix).append("query")),
-                           bind(&atmos::query::QueryAdapter<DatabaseHandler>::onQueryInterest,
-                                this, _1, _2),
-                           bind(&atmos::query::QueryAdapter<DatabaseHandler>::onRegisterSuccess,
-                                this, _1),
-                           bind(&atmos::query::QueryAdapter<DatabaseHandler>::onRegisterFailure,
-                                this, _1, _2));
+  atmos::util::CatalogAdapter<DatabaseHandler>::m_face->setInterestFilter(ndn::InterestFilter(ndn::Name(prefix).append("query")),
+                                                                          bind(&atmos::query::QueryAdapter<DatabaseHandler>::onQueryInterest,
+                                                                               this, _1, _2),
+                                                                          bind(&atmos::query::QueryAdapter<DatabaseHandler>::onRegisterSuccess,
+                                                                               this, _1),
+                                                                          bind(&atmos::query::QueryAdapter<DatabaseHandler>::onRegisterFailure,
+                                                                               this, _1, _2));
 
-  face->setInterestFilter(ndn::InterestFilter(ndn::Name(prefix).append("query-results")),
-                           bind(&atmos::query::QueryAdapter<DatabaseHandler>::onQueryResultsInterest,
-                                this, _1, _2),
-                           bind(&atmos::query::QueryAdapter<DatabaseHandler>::onRegisterSuccess,
-                                this, _1),
-                           bind(&atmos::query::QueryAdapter<DatabaseHandler>::onRegisterFailure,
-                                this, _1, _2));
+  atmos::util::CatalogAdapter<DatabaseHandler>::m_face->setInterestFilter(ndn::InterestFilter(ndn::Name(prefix).append("query-results")),
+                                                                          bind(&atmos::query::QueryAdapter<DatabaseHandler>::onQueryResultsInterest,
+                                                                               this, _1, _2),
+                                                                          bind(&atmos::query::QueryAdapter<DatabaseHandler>::onRegisterSuccess,
+                                                                               this, _1),
+                                                                          bind(&atmos::query::QueryAdapter<DatabaseHandler>::onRegisterFailure,
+                                                                               this, _1, _2));
 }
 
 template <typename DatabaseHandler>
@@ -209,7 +227,21 @@ QueryAdapter<DatabaseHandler>::onQueryResultsInterest(const ndn::InterestFilter&
   // CS so we just ignore any retrieval Interests that hit us for
   // now. In the future, this should check some form of
   // InMemoryStorage.
-  std::cout << "Got to query result" << std::endl;
+  auto data = m_cache.find(interest.getName());
+  if (data) {
+    atmos::util::CatalogAdapter<DatabaseHandler>::m_face->put(*data);
+  } else {
+    // regenerate query
+    const std::string jsonQuery(reinterpret_cast<const char*>(interest.getName()[atmos::util::CatalogAdapter<DatabaseHandler>::m_prefix.size()+1].value()));
+
+    std::shared_ptr<const ndn::Interest> interestPtr = interest.shared_from_this();
+    std::thread queryRegenThread(&QueryAdapter<DatabaseHandler>::runJsonQuery, this,
+                          atmos::util::CatalogAdapter<DatabaseHandler>::m_face,
+                          atmos::util::CatalogAdapter<DatabaseHandler>::m_keyChain, interestPtr,
+                          jsonQuery,
+                          atmos::util::CatalogAdapter<DatabaseHandler>::m_databaseHandler);
+    queryRegenThread.join();
+  }
 }
 
 template <typename DatabaseHandler>
@@ -256,7 +288,11 @@ QueryAdapter<DatabaseHandler>::publishSegment(std::shared_ptr<ndn::Face> face,
     data->setFinalBlockId(segmentName[-1]);
   }
   keyChain->sign(*data);
-  face->put(*data);
+  //face->put(*data);
+
+  m_mutex.lock();
+  m_cache.insert(*data);
+  m_mutex.unlock();
 }
 
 template <typename DatabaseHandler>
@@ -266,22 +302,34 @@ QueryAdapter<DatabaseHandler>::query(std::shared_ptr<ndn::Face> face,
                                      std::shared_ptr<const ndn::Interest> interest,
                                      std::shared_ptr<DatabaseHandler> databaseHandler)
 {
+  // 1) Strip the prefix off the ndn::Interest's ndn::Name
+  // +1 to grab JSON component after "query" component
+  const std::string jsonQuery(reinterpret_cast<const char*>(interest->getName()[atmos::util::CatalogAdapter<DatabaseHandler>::m_prefix.size()+1].value()));
+  if (jsonQuery.length() > 0) {
+    runJsonQuery(face, keyChain, interest, jsonQuery, databaseHandler);
+  } // else NACK?
+}
+
+template <typename DatabaseHandler>
+void
+QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<ndn::Face> face,
+                                            std::shared_ptr<ndn::KeyChain> keyChain,
+					    std::shared_ptr<const ndn::Interest> interest,
+                                            const std::string& jsonQuery,
+                                            std::shared_ptr<DatabaseHandler> databaseHandler)
+{
   // @todo: we should return a NACK as we have no database
 }
 
 
 template <>
 void
-QueryAdapter<MYSQL>::query(std::shared_ptr<ndn::Face> face,
-                           std::shared_ptr<ndn::KeyChain> keyChain,
-                           std::shared_ptr<const ndn::Interest> interest,
-                           std::shared_ptr<MYSQL> databaseHandler)
+QueryAdapter<MYSQL>::runJsonQuery(std::shared_ptr<ndn::Face> face,
+                                  std::shared_ptr<ndn::KeyChain> keyChain,
+                                  std::shared_ptr<const ndn::Interest> interest,
+                                  const std::string& jsonQuery,
+                                  std::shared_ptr<MYSQL> databaseHandler)
 {
-  std::cout << "Running query" << std::endl;
-  // 1) Strip the prefix off the ndn::Interest's ndn::Name
-  // +1 to grab JSON component after "query" component
-  const std::string jsonQuery(reinterpret_cast<const char*>(interest->getName()[m_prefix.size()+1].value()));
-
   // For efficiency, do a double check. Once without the lock, then with it.
   if (m_activeQueryToFirstResponse.find(jsonQuery) != m_activeQueryToFirstResponse.end()) {
     m_mutex.lock();
@@ -366,7 +414,7 @@ QueryAdapter<MYSQL>::query(std::shared_ptr<ndn::Face> face,
     std::shared_ptr<MYSQL_RES> results = atmos::util::PerformQuery(databaseHandler, mysqlQuery.str());
 
     MYSQL_ROW row;
-    ndn::Name segmentPrefix(m_prefix);
+    ndn::Name segmentPrefix(atmos::util::CatalogAdapter<MYSQL>::m_prefix);
     segmentPrefix.append("query-results");
     segmentPrefix.append(version);
 

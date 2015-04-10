@@ -111,12 +111,20 @@ h1 {
     background: #FFEF36;
 }
 
-.autocomplete {
+.autocomplete, /autocompleteButton {
     width: 80%;
     /*padding-left: 100px;
     margin: 0px;*/
     display: block;
-    /*position: relative;*/
+    position: relative;
+}
+
+.currentSelections {
+    width: 80%;
+    /*padding-left: 100px;
+    margin: 0px;*/
+    display: block;
+    position: relative;
 }
 
 .textbox {
@@ -135,7 +143,7 @@ h1 {
     margin: 0px;
     padding: 0px;
     width: 80%;
-    border: 1px solid #000000;
+    /*border: 1px solid #000000;*/
     -moz-border-radius-bottomleft: 0px;
     -webkit-border-bottom-left-radius: 0px;
     border-bottom-left-radius: 0px;
