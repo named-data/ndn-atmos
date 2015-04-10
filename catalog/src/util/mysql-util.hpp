@@ -16,36 +16,33 @@
  *  along with NDN-Atmos.  If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#include "catalog/catalog.hpp"
-#include "util/mysql-util.hpp"
-
-#include <ChronoSync/socket.hpp>
-
-#include <ndn-cxx/data.hpp>
-#include <ndn-cxx/face.hpp>
-#include <ndn-cxx/interest.hpp>
-#include <ndn-cxx/name.hpp>
-#include <ndn-cxx/security/key-chain.hpp>
+#ifndef ATMOS_UTIL_CONNECTION_DETAILS_HPP
+#define ATMOS_UTIL_CONNECTION_DETAILS_HPP
 
 #include "mysql/mysql.h"
 
 #include <memory>
+#include <string>
 
-int main()
-{
-  std::shared_ptr<chronosync::Socket> socket; // use ChronoSync
-  std::shared_ptr<ndn::Face> face(new ndn::Face());
-  std::shared_ptr<ndn::KeyChain> keyChain(new ndn::KeyChain());
+namespace atmos {
+namespace util {
+struct ConnectionDetails {
+public:
+  std::string server;
+  std::string user;
+  std::string password;
+  std::string database;
 
-  // This should be unique to each instance
-  ndn::Name aName("/catalog/myUniqueName");
+  ConnectionDetails(const std::string& serverInput, const std::string& userInput,
+                    const std::string& passwordInput, const std::string& databaseInput);
+};
 
-  atmos::util::ConnectionDetails mysqlID("atmos-den.es.net", "testuser", "test623", "testdb");
-  std::shared_ptr<MYSQL> conn;
-  conn = atmos::util::MySQLConnectionSetup(mysqlID);
+std::shared_ptr<MYSQL>
+MySQLConnectionSetup(ConnectionDetails& details);
 
-  atmos::catalog::Catalog<MYSQL> catalog(face, keyChain, conn, aName);
-  face->processEvents();
+std::shared_ptr<MYSQL_RES>
+PerformQuery(std::shared_ptr<MYSQL> connection, const std::string& sql_query);
 
-  return 0;
-}
+} // namespace util
+} // namespace atmos
+#endif //ATMOS_UTIL_CONNECTION_DETAILS_HPP
