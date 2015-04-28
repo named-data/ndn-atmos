@@ -24,14 +24,14 @@
 #include <ndn-cxx/interest.hpp>
 #include <ndn-cxx/name.hpp>
 #include <ndn-cxx/security/key-chain.hpp>
+#include <ndn-cxx/encoding/block.hpp>
 
 #include <memory>
 #include <string>
 
-
-#include <ndn-cxx/encoding/block.hpp>
-
 #include <iostream>
+#include "util/config-file.hpp"
+
 
 namespace atmos {
 namespace util {
@@ -42,39 +42,50 @@ namespace util {
  * Both QueryAdapter and PublisherAdapter use this as a template to allow consistancy between
  * their designs and flow-control
  */
-template <typename DatabaseHandler>
 class CatalogAdapter {
 public:
-  /**
-   * Constructor
-   * @param face:            Face that will be used for NDN communications
-   * @param keyChain:        KeyChain to sign query responses and evaluate the incoming publish
-   *                          and ChronoSync requests against
-   * @param databaseHandler: <typename DatabaseHandler> to the database that stores our catalog
-   * @oaram prefix:          Name that will define the prefix to all queries and publish requests
-   *                          that will be routed to this specific Catalog Instance
-   */
-  CatalogAdapter(std::shared_ptr<ndn::Face> face, std::shared_ptr<ndn::KeyChain> keyChain,
-          std::shared_ptr<DatabaseHandler> databaseHandler, const ndn::Name& prefix);
+  class Error : public std::runtime_error
+  {
+  public:
+    explicit
+    Error(const std::string& what)
+      : std::runtime_error(what)
+    {
+    }
+  };
 
   /**
-   * Destructor
+   * Constructor
+   * @param face:      Face that will be used for NDN communications
+   * @param keyChain:  KeyChain that will be used for data signing
    */
+  CatalogAdapter(const std::shared_ptr<ndn::Face>& face,
+                 const std::shared_ptr<ndn::KeyChain>& keyChain);
+
   virtual
   ~CatalogAdapter();
 
-protected:
-  // @{ (onData and onTimeout) and/or onInterest should be overwritten at a minimum
-
-
   /**
-   * Data that is routed to this class based on the Interest
-   *
-   * @param interest: Interest that caused this Data to be routed
-   * @param data:     Data that needs to be handled
+   * Helper function that sets the configuration section handler
+   * @param config: ConfigFile object to set the handler
+   * @param prefix: Catalog prefix
    */
   virtual void
-  onData(const ndn::Interest& interest, const ndn::Data& data);
+  setConfigFile(util::ConfigFile& config,
+                const ndn::Name& prefix) = 0;
+
+protected:
+
+  /**
+   * Callback function that handles the section parsing jobs
+   */
+  virtual void
+  onConfig(const util::ConfigSection& section,
+           bool isDryDun,
+           const std::string& fileName,
+           const ndn::Name& prefix) = 0;
+
+  // @{ (onData and onTimeout) and/or onInterest should be overwritten at a minimum
 
   /**
    * Timeout from a Data request
@@ -83,17 +94,6 @@ protected:
    */
   virtual void
   onTimeout(const ndn::Interest& interest);
-
-
-  /**
-   * Interest that is routed to this class based on the InterestFilter
-   *
-   * @param filter:   InterestFilter that caused this Interest to be routed
-   * @param interest: Interest that needs to be handled
-   */
-  virtual void
-  onInterest(const ndn::InterestFilter& filter, const ndn::Interest& interest);
-  // @}
 
   /**
    * Callback that should/can be used to evaluate that the Interest Filter has been correctly set up
@@ -112,71 +112,16 @@ protected:
   virtual void
   onRegisterFailure(const ndn::Name& prefix, const std::string& reason);
 
-
+protected:
   // Face to communicate with
-  std::shared_ptr<ndn::Face> m_face;
-  // KeyChain used for security
-  std::shared_ptr<ndn::KeyChain> m_keyChain;
-  // Handle to the Catalog's database
-  std::shared_ptr<DatabaseHandler> m_databaseHandler;
-  // Prefix for our namespace
+  const std::shared_ptr<ndn::Face> m_face;
+  // KeyChain used for data signing
+  const std::shared_ptr<ndn::KeyChain> m_keyChain;
   ndn::Name m_prefix;
+  // Name for the signing key
+  ndn::Name m_signingId;
 }; // class CatalogAdapter
 
-template <typename DatabaseHandler>
-CatalogAdapter<DatabaseHandler>::CatalogAdapter(std::shared_ptr<ndn::Face> face,
-                                                std::shared_ptr<ndn::KeyChain> keyChain,
-                                                std::shared_ptr<DatabaseHandler> databaseHandler,
-                                                const ndn::Name& prefix)
-  : m_face(face), m_keyChain(keyChain), m_databaseHandler(databaseHandler), m_prefix(prefix)
-{
-  // empty
-}
-
-template <typename DatabaseHandler>
-CatalogAdapter<DatabaseHandler>::~CatalogAdapter()
-{
-  // empty
-}
-
-template <typename DatabaseHandler>
-void
-CatalogAdapter<DatabaseHandler>::onRegisterSuccess(const ndn::Name& prefix)
-{
-  // std::cout << "Successfully registered " << prefix << std::endl;
-}
-
-template <typename DatabaseHandler>
-void
-CatalogAdapter<DatabaseHandler>::onRegisterFailure(const ndn::Name& prefix, const std::string& reason)
-{
-  // std::cout << "Failed to register prefix " << prefix << ": " << reason << std::endl;
-}
-
-
-template <typename DatabaseHandler>
-void
-CatalogAdapter<DatabaseHandler>::onData(const ndn::Interest& interest, const ndn::Data& data)
-{
-  // At this point we need to get the ndn::Block out of data.getContent()
-}
-
-template <typename DatabaseHandler>
-void
-CatalogAdapter<DatabaseHandler>::onInterest(const ndn::InterestFilter& filter, const ndn::Interest& interest)
-{
-  // At this point we need to use the filter to either:
-  // a) Request the Data for the Interest, or
-  // b) Use the Filter to ID where in the Interest the Interest's "Content" is, and grab that out
-}
-
-
-template <typename DatabaseHandler>
-void
-CatalogAdapter<DatabaseHandler>::onTimeout(const ndn::Interest& interest)
-{
-  // At this point, probably should do a retry
-}
 
 } // namespace util
 } // namespace atmos

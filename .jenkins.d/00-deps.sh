@@ -21,7 +21,6 @@ if has Ubuntu $NODE_LABELS; then
     set -x
     sudo apt-get update -qq -y
     sudo apt-get -qq -y install build-essential pkg-config $BOOST_PKG libssl-dev \
-                                libcrypto++-dev libsqlite3-dev mysql-client \
-                                mysql-server libjsoncpp-dev protobuf-compiler \
-                                libprotobuf-dev
+                                libcrypto++-dev libsqlite3-dev libmysqlclient-dev \
+                                libjsoncpp-dev protobuf-compiler libprotobuf-dev
 fi

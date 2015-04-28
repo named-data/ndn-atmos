@@ -17,8 +17,8 @@
 **/
 
 #include "util/mysql-util.hpp"
-
-#include "mysql/errmsg.h"
+#include <mysql/errmsg.h>
+#include <stdexcept>
 
 namespace atmos {
 namespace util {
@@ -32,18 +32,18 @@ ConnectionDetails::ConnectionDetails(const std::string& serverInput, const std::
 
 
 std::shared_ptr<MYSQL>
-MySQLConnectionSetup(ConnectionDetails& details) {
+MySQLConnectionSetup(const ConnectionDetails& details) {
   MYSQL* conn = mysql_init(NULL);
-  mysql_real_connect(conn, details.server.c_str(), details.user.c_str(),
-                     details.password.c_str(), details.database.c_str(), 0, NULL, 0);
-  std::shared_ptr<MYSQL> connection(conn);
+  if(!mysql_real_connect(conn, details.server.c_str(), details.user.c_str(),
+                        details.password.c_str(), details.database.c_str(), 0, NULL, 0)) {
+    throw std::runtime_error(mysql_error(conn));
+  }
+  std::shared_ptr<MYSQL> connection(conn, &mysql_close);
   return connection;
 }
 
 std::shared_ptr<MYSQL_RES>
-PerformQuery(std::shared_ptr<MYSQL> connection, const std::string& sql_query) {
-  std::shared_ptr<MYSQL_RES> result(NULL);
-
+MySQLPerformQuery(std::shared_ptr<MYSQL> connection, const std::string& sql_query) {
   switch (mysql_query(connection.get(), sql_query.c_str()))
   {
     case 0:
@@ -51,7 +51,7 @@ PerformQuery(std::shared_ptr<MYSQL> connection, const std::string& sql_query) {
       MYSQL_RES* resultPtr = mysql_store_result(connection.get());
       if (resultPtr != NULL)
       {
-        result.reset(resultPtr);
+        return std::shared_ptr<MYSQL_RES>(resultPtr, &mysql_free_result);
       }
       break;
     }
@@ -63,7 +63,7 @@ PerformQuery(std::shared_ptr<MYSQL> connection, const std::string& sql_query) {
     default:
       break;
   }
-  return result;
+  return nullptr;
 }
 
 } // namespace util

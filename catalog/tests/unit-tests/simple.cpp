@@ -25,7 +25,7 @@
 #include <iostream>
 
 namespace atmos {
-namespace test {
+namespace tests {
 
 BOOST_AUTO_TEST_SUITE(MasterSuite)
 
@@ -53,5 +53,5 @@ BOOST_AUTO_TEST_CASE(JsonTest)
 
 BOOST_AUTO_TEST_SUITE_END()
 
-} //namespace test
+} //namespace tests
 } //namespace atmos

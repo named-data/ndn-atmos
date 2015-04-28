@@ -1,0 +1,89 @@
+; The catalog section contains settings of catalog
+general
+{
+  ; Set the catalog prefix, so that adapters can extend it as their own prefix
+  ; e.g., suppose that the catalog has the prefix "ndn:/cmip5", so QueryAdapter has the prefix
+  ; "ndn:/cmip5/catalog/query" and "ndn:/cmip5/catalog/query-results",
+  ; PublishAdapter has the prefix "ndn:/cmip5/catalog/publish"
+
+  prefix /catalog/myUniqueName
+}
+
+; The queryAdapter section contains settings of queryAdapter
+queryAdapter
+{
+  ; signingId ndn:/cmip5/test/query/identity; Set the Identity that signs data that respond
+  ; the queries
+
+  ; The database section contains settings of database for QueryAdapter
+  database
+  {
+    dbServer 127.0.0.1  ; Specify the database server
+    dbName testdb       ; Specify the database name
+    dbUser testuser1    ; Specify the database user name
+    dbPasswd test123    ; Specify the associated password for the dbUser
+  }
+}
+
+; The publishAdapter section contains settings of publishAdapter
+publishAdapter
+{
+  ; ; Set the identity that signs published data
+  ; signingId ndn:/cmip5/test/publish/identity
+
+  ; ; The published_file_security section contains the rules for the adapter to verify the
+  ; ; published files indeed come from a valid publisher.
+  ; published_file_security
+  ; {
+  ; }
+
+  ; The database section contains settings of database
+  ; The user in publishAdapter may differ from the one in queryAdapter, to provide different
+  ; access control
+  database
+  {
+    dbServer 127.0.0.1  ; Specify the database server
+    dbName testdb       ; Specify the database name
+    dbUser testuser2    ; Specify the database user name
+    dbPasswd test123    ; Specify the associated password for the dbUser
+  }
+
+  ; The sync section contains settings of ChronoSync
+  sync
+  {
+    ; Set the prefix for sync messages, default 'ndn:/ndn/broadcast'
+    prefix ndn:/ndn/broadcast
+
+    ; ; The sync_data_security section contains the rules that are required for ChronoSync nodes to
+    ; ; verify published data by other ChronoSync nodes.
+    ; ; The ChronoSync validator will be disabled when sync_data_security section is missing.
+    ; sync_data_security
+    ; {
+    ;   ; ; This section defines the trust model for the ChronoSync data Management. It consists of
+    ;   ; ; rules and trust-anchors, which are briefly defined in this file. Multiple rules can be
+    ;   ; ; included
+    ;   ; rule
+    ;   ; {
+    ;   ;   id "ChronoSync Update Messages Rule"
+    ;   ;   for data                             ; rule for Data (to validate NDN certificates)
+    ;   ;   filter
+    ;   ;   {
+    ;   ;     type name                          ; condition on data name
+    ;   ;     regex ^[^<KEY>]*<KEY><>*<ksk-.*><ID-CERT><>$
+    ;   ;   }
+    ;   ;   checker
+    ;   ;   {
+    ;   ;     type hierarchical                  ; the certificate name of the signing key and
+    ;   ;                                        ; the data name must follow the hierarchical model
+    ;   ;     sig-type rsa-sha256                ; data must have a rsa-sha256 signature
+    ;   ;   }
+    ;   ; }
+    ;   ; trust-anchor
+    ;   ; {
+    ;   ;   type file
+    ;   ;   file-name keys/default.ndncert ; the file name, by default this file should be placed in
+    ;   ;                                  ; the same folder as this config file.
+    ;   ; }
+    ; }
+  }
+}

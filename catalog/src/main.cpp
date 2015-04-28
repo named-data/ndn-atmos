@@ -14,37 +14,66 @@
  *
  *  You should have received a copy of the GNU General Public License
  *  along with NDN-Atmos.  If not, see <http://www.gnu.org/licenses/>.
-**/
+ **/
 
+#include "config.hpp"
 #include "catalog/catalog.hpp"
-#include "util/mysql-util.hpp"
-
-#include <ChronoSync/socket.hpp>
-
-#include <ndn-cxx/data.hpp>
-#include <ndn-cxx/face.hpp>
-#include <ndn-cxx/interest.hpp>
-#include <ndn-cxx/name.hpp>
-#include <ndn-cxx/security/key-chain.hpp>
-
-#include "mysql/mysql.h"
+#include "query/query-adapter.hpp"
+#include "publish/publish-adapter.hpp"
 
 #include <memory>
+#include <getopt.h>
+#include <ndn-cxx/face.hpp>
 
-int main()
+
+void
+usage()
 {
-  std::shared_ptr<chronosync::Socket> socket; // use ChronoSync
+  std::cout << "\n Usage:\n atmos-catalog "
+    "[-h] [-f config file] "
+    "   [-f config file]    - set the configuration file\n"
+    "   [-h]                - print help and exit\n"
+    "\n";
+}
+
+int
+main(int argc, char** argv)
+{
+  int option;
+  std::string configFile(DEFAULT_CONFIG_FILE);
+
+  while ((option = getopt(argc, argv, "f:h")) != -1) {
+    switch (option) {
+      case 'f':
+        configFile.assign(optarg);
+        break;
+      case 'h':
+      default:
+        usage();
+        return 0;
+    }
+  }
+
+  argc -= optind;
+  argv += optind;
+  if (argc != 0) {
+    usage();
+    return 1;
+  }
+
   std::shared_ptr<ndn::Face> face(new ndn::Face());
   std::shared_ptr<ndn::KeyChain> keyChain(new ndn::KeyChain());
 
-  // This should be unique to each instance
-  ndn::Name aName("/catalog/myUniqueName");
+  std::unique_ptr<atmos::util::CatalogAdapter>
+    queryAdapter(new atmos::query::QueryAdapter<MYSQL>(face, keyChain));
+  std::unique_ptr<atmos::util::CatalogAdapter>
+    publishAdapter(new atmos::publish::PublishAdapter<MYSQL>(face, keyChain));
 
-  atmos::util::ConnectionDetails mysqlID("atmos-den.es.net", "testuser", "test623", "testdb");
-  std::shared_ptr<MYSQL> conn;
-  conn = atmos::util::MySQLConnectionSetup(mysqlID);
+  atmos::catalog::Catalog catalogInstance(face, keyChain, configFile);
+  catalogInstance.addAdapter(queryAdapter);
+  catalogInstance.addAdapter(publishAdapter);
 
-  atmos::catalog::Catalog<MYSQL> catalog(face, keyChain, conn, aName);
+  catalogInstance.initialize();
   face->processEvents();
 
   return 0;

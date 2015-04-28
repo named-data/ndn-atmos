@@ -16,33 +16,42 @@
  *  along with NDN-Atmos.  If not, see <http://www.gnu.org/licenses/>.
 **/
 
-#ifndef ATMOS_UTIL_CONNECTION_DETAILS_HPP
-#define ATMOS_UTIL_CONNECTION_DETAILS_HPP
-
-#include "mysql/mysql.h"
-
-#include <memory>
-#include <string>
+#include "catalog-adapter.hpp"
 
 namespace atmos {
 namespace util {
-struct ConnectionDetails {
-public:
-  std::string server;
-  std::string user;
-  std::string password;
-  std::string database;
 
-  ConnectionDetails(const std::string& serverInput, const std::string& userInput,
-                    const std::string& passwordInput, const std::string& databaseInput);
-};
+CatalogAdapter::CatalogAdapter(const std::shared_ptr<ndn::Face>& face,
+                               const std::shared_ptr<ndn::KeyChain>& keyChain)
+  : m_face(face)
+  , m_keyChain(keyChain)
+{
+  // empty
+}
 
-std::shared_ptr<MYSQL>
-MySQLConnectionSetup(const ConnectionDetails& details);
+CatalogAdapter::~CatalogAdapter()
+{
+  // empty
+}
 
-std::shared_ptr<MYSQL_RES>
-MySQLPerformQuery(std::shared_ptr<MYSQL> connection, const std::string& sql_query);
+void
+CatalogAdapter::onRegisterSuccess(const ndn::Name& prefix)
+{
+  // std::cout << "Successfully registered " << prefix << std::endl;
+}
+
+void
+CatalogAdapter::onRegisterFailure(const ndn::Name& prefix, const std::string& reason)
+{
+  throw Error("Failed to register prefix " + prefix.toUri() + " : " + reason);
+}
+
+void
+CatalogAdapter::onTimeout(const ndn::Interest& interest)
+{
+  // At this point, probably should do a retry
+}
 
 } // namespace util
 } // namespace atmos
-#endif //ATMOS_UTIL_CONNECTION_DETAILS_HPP
+

@@ -77,7 +77,6 @@
         function query(prefix, parameters, callback, pipeline) {
             results = [];
             dropdown = [];
-
             var resultTable = $(".resultTable");
             resultTable.empty();
             resultTable.append('<tr><td>Results</td></tr>');
@@ -85,6 +84,7 @@
             var queryPrefix = new Name(prefix);
             queryPrefix.append("query");
 
+            var jsonString = JSON.stringify(parameters);
             queryPrefix.append(JSON.stringify(parameters));
 
             state = {
@@ -139,11 +139,10 @@
         function onQueryResultsData(interest, data) {
             var name = data.getName();
             delete state["outstanding"][interest.getName().toUri()];
-
-            if (!name.get(-1).equals(new Name.Component("END"))) {
+            if (!name.get(-1).equals(data.getMetaInfo().getFinalBlockId())) {
                 expressNextInterest();
             } else {
-                alert("found final block");
+                //alert("found final block");
             }
 
             state["userOnData"](data);

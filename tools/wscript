@@ -1,0 +1,56 @@
+# -*- Mode: python; py-indent-offset: 4; indent-tabs-mode: nil; coding: utf-8; -*-
+
+"""
+ Copyright (c) 2013-2015,  Regents of the University of California,
+                    2015,  Colorado State University.
+
+ This file is part of ndn-cxx library (NDN C++ library with eXperimental eXtensions).
+
+ ndn-cxx library is free software: you can redistribute it and/or modify it under the
+ terms of the GNU Lesser General Public License as published by the Free Software
+ Foundation, either version 3 of the License, or (at your option) any later version.
+
+ ndn-cxx library is distributed in the hope that it will be useful, but WITHOUT ANY
+ WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+ PARTICULAR PURPOSE.  See the GNU Lesser General Public License for more details.
+
+ You should have received copies of the GNU General Public License and GNU Lesser
+ General Public License along with ndn-cxx, e.g., in COPYING.md file.  If not, see
+ <http://www.gnu.org/licenses/>.
+
+ See AUTHORS.md for complete list of ndn-cxx authors and contributors.
+"""
+
+from waflib import Utils
+
+top = '..'
+
+def configure(conf):
+    conf.find_program('sh')
+
+def build(bld):
+    # List all .cpp files (whole tool should be in one .cpp)
+    for i in bld.path.ant_glob(['*.cpp']):
+        name = str(i)[:-len(".cpp")]
+        bld(features=['cxx', 'cxxprogram'],
+            target="../bin/%s" % name,
+            source=[i] + bld.path.ant_glob(['%s/**/*.cpp' % name]),
+            use='NDN_CXX'
+            )
+
+    # List all directories files (tool can has multiple .cpp in the directory)
+    for name in bld.path.ant_glob(['*'], dir=True, src=False, excl=['wrapper']):
+        bld(features=['cxx', 'cxxprogram'],
+            target="../bin/%s" % name,
+            source=bld.path.ant_glob(['%s/**/*.cpp' % name]),
+            use='NDN_CXX',
+            includes='%s' % name,
+        )
+
+    bld(features="subst",
+        source=bld.path.ant_glob(['*.sh', '*.py']),
+        target=['../bin/%s' % node.change_ext('')
+                for node in bld.path.ant_glob(['*.sh', '*.py'])],
+        install_path="${BINDIR}",
+        chmod=Utils.O755
+    )

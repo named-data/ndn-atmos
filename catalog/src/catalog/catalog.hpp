@@ -19,12 +19,10 @@
 #ifndef ATMOS_CATALOG_CATALOG_HPP
 #define ATMOS_CATALOG_CATALOG_HPP
 
-#include "query/query-adapter.hpp"
-#include "publish/publish-adapter.hpp"
+#include "util/catalog-adapter.hpp"
+#include "util/config-file.hpp"
 
-#include <ndn-cxx/data.hpp>
 #include <ndn-cxx/face.hpp>
-#include <ndn-cxx/interest.hpp>
 #include <ndn-cxx/name.hpp>
 #include <ndn-cxx/security/key-chain.hpp>
 
@@ -36,55 +34,82 @@ namespace catalog {
 
 /**
  * The Catalog acts as a façade around the Database.
- * It is Templated on a DatabaseHandler: the connection into the database that it will use to
- * communicate with the actual system
  */
-template <typename DatabaseHandler>
 class Catalog {
 public:
+  class Error : public std::runtime_error
+  {
+  public:
+    explicit
+    Error(const std::string& what)
+      : std::runtime_error(what)
+    {
+    }
+  };
+
   /**
    * Constructor
    *
-   * @param aFace:            Face that will be used for NDN communications
-   * @param aKeyChain:        KeyChain to sign query responses and evaluate the incoming publish
-   *                          and ChronoSync requests against
-   * @param aDatabaseHandler: <typename DatabaseHandler> to the database that stores our catalog
-   * @oaram aPrefix:          Name that will define the prefix to all queries and publish requests
-   *                          that will be routed to this specific Catalog Instance
+   * @param face:             Face that will be used for NDN communications
+   * @param keyChain:         KeyChain that will be used for data signing
+   * @param configFileName:   Configuration file that specifies the catalog configuration details
    */
-  Catalog(std::shared_ptr<ndn::Face> aFace, std::shared_ptr<ndn::KeyChain> aKeyChain,
-          std::shared_ptr<DatabaseHandler> aDatabaseHandler, const ndn::Name& aPrefix);
+  Catalog(const std::shared_ptr<ndn::Face>& face,
+          const std::shared_ptr<ndn::KeyChain>& keyChain,
+          const std::string& configFileName);
 
-  /**
-   * Destructor
-   */
   virtual
   ~Catalog();
 
+  /**
+   * Function that performs the initialization of catalog instance and the adapters added in the
+   * catalog. After initialization, face can be started by processEvents()
+   */
+  void
+  initialize();
+
+  /**
+   * Helper function that adds adapters in catalog so that all adapters can be initialized when
+   * the initialize() is called
+   *
+   * @param adapter: Adapter that will be added. Any adapter instances must be declared as the
+   *                 base Class "util::CatalogAdapter"
+   */
+  void
+  addAdapter(std::unique_ptr<util::CatalogAdapter>& adapter);
+
 protected:
-  // Templated Adapter to handle Query requests
-  atmos::query::QueryAdapter<DatabaseHandler> m_queryAdapter;
-  // Templated Adapter to handle Publisher requests
-  atmos::publish::PublishAdapter<DatabaseHandler> m_publishAdapter;
+
+  /**
+   * Helper function that configures the catalog according to the general section
+   */
+  void
+  onConfig(const util::ConfigSection& configSection,
+           bool isDryRun,
+           const std::string& fileName);
+
+  /**
+   * Helper function that subscribes to the general section for the config file
+   */
+  void
+  initializeCatalog();
+
+  /**
+   * Helper function that launches the adapters configuration processing functions
+   */
+  void
+  initializeAdapters();
+
+private:
+  const std::shared_ptr<ndn::Face> m_face;
+  const std::shared_ptr<ndn::KeyChain> m_keyChain;
+  const std::string m_configFile;
+  ndn::Name m_prefix;
+
+  // Adapters that added by users
+  std::vector<std::unique_ptr<util::CatalogAdapter>> m_adapters;
 }; // class Catalog
 
-template <typename DatabaseHandler>
-Catalog<DatabaseHandler>::Catalog(std::shared_ptr<ndn::Face> aFace,
-                                  std::shared_ptr<ndn::KeyChain> aKeyChain,
-                                  std::shared_ptr<DatabaseHandler> aDatabaseHandler,
-                                  const ndn::Name& aPrefix)
-
-  : m_queryAdapter(aFace, aKeyChain, aDatabaseHandler, aPrefix)
-  , m_publishAdapter(aFace, aKeyChain, aDatabaseHandler, aPrefix)
-{
-  // empty
-}
-
-template <typename DatabaseHandler>
-Catalog<DatabaseHandler>::~Catalog()
-{
-  // empty
-}
 
 } // namespace catalog
 } // namespace atmos
