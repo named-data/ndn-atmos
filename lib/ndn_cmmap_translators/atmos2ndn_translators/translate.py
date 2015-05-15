@@ -81,7 +81,7 @@ def translate(parsedConfig, dataFilepath):
                             if __debug__:
                                 print("NDN Name: %s\n" %(translateObj.finalName))
                                 print("-"*80)
-                            translatedFileNames.append(translatedObj.finalName)
+                            translatedFileNames.append(translateObj.finalName)
 
                 except Exception as err:
                     traceback.print_exc(file=sys.stdout)

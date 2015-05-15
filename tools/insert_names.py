@@ -55,21 +55,21 @@ def createTables(cursor):
       print("Creating table {}: ".format(tableName))
       cursor.execute(query)
       print("Created table {}: ".format(tableName))
-      return 0
+      return True
     except sql.Error as err:
       if err.errno == errorcode.ER_TABLE_EXISTS_ERROR:
         print("Table already exists: %s " %(tableName))
-        return 1
+        return True
       else:
         print("Failed to create table: %s" %(err.msg))
-        return -1
+        return False
 
-def insertNames(cursor, name):
+def insertName(cursor, name):
   if __debug__:
     print("Name to insert %s " %(name))
 
   #hashvalue is needed since name is too long for primary key (must be <767 bytes)
-  hashValue =  hashlib.sha256(str(name).encode('utf-8')).hexdigest() 
+  hashValue =  hashlib.sha256(str(name).encode('utf-8')).hexdigest()
   if __debug__:
     print("Hash of name %s " %(hashValue))
 
@@ -79,7 +79,7 @@ def insertNames(cursor, name):
   splitName.insert(0, name)
   splitName = tuple(splitName)
   if __debug__:
-    print("Name to insert in database %s" %(splitName))
+    print("Name to insert in database %s" %(splitName,))
 
   addRecord = ("INSERT INTO cmip5 "
                "(name, sha256, activity, product, organization, model, experiment, frequency,\
@@ -89,17 +89,17 @@ def insertNames(cursor, name):
   try:
     cursor.execute(addRecord, splitName)
     print("Inserted record %s" %(name))
-    return 0
+    return True
   except sql.Error as err:
     print("Error inserting name %s" %(err.msg))
-    return -1
+    return False
 
 if __name__ == '__main__':
   datafilePath = input("File/directory to translate: ")
   configFilepath = input("Schema file path for the above file/directory: ")
 
   #do the translation, the library should provide error messages, if any
-  ndnNames = atmos_translator.args_for_translation(datafilePath, configFilepath)
+  ndnNames = atmos_translator.argsForTranslation(datafilePath, configFilepath)
   if len(ndnNames) == 0:
     print("No name returned from the translator, exiting.")
     sys.exit(-1)
@@ -107,33 +107,30 @@ if __name__ == '__main__':
     print("Returned NDN names: %s" %(ndnNames))
 
   #open connection to db
+  dbHost = input("Database Host?")
   dbName = input("Database to store NDN names?")
   dbUsername = input("Database username?")
   dbPasswd = getpass.getpass("Database password?")
 
   try:
-    con = sql.connect(user=dbUsername, database=dbName, password=dbPasswd)
+    con = sql.connect(user=dbUsername, database=dbName, password=dbPasswd, host=dbHost)
     cursor = con.cursor()
     if __debug__:
       print("successfully connected to database")
 
     #if tables do not exist, create tables
-    res = createTables(cursor)
-    if __debug__:
-      print("Return Code for create_tables: %s" %(res))
-
-    #if error, exit
-    if res == -1:
-      sys.exit(-1)
-
     #if table already exists, or creation successful, continue
-    if res == 1 or res == 0:
+    if createTables(cursor):
       for ndnName in ndnNames:
         #get list of files and insert into database
-        res_insertNames = insertNames(cursor, ndnName)
+        resInsertnames = insertName(cursor, ndnName)
         if __debug__:
-          print("Return Code is %s for inserting name: %s" %(res_insertNames, ndnName))
+          print("Return Code is %s for inserting name: %s" %(resInsertnames, ndnName))
       con.commit()
+    else:
+      print("Error creating tables, exiting.")
+      sys.exit(-1)
+
   except sql.Error as err:
     if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
       print("Incorrect username or password")
@@ -143,3 +140,4 @@ if __name__ == '__main__':
       print("Error connecting to Database: %s" %(err.msg))
   finally:
     con.close()
+
