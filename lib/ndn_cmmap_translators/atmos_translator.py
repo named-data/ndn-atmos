@@ -33,27 +33,32 @@ def argsForTranslation(dataFilepath, configPath):
     #pass the config file to parser module, which will return and object
     #with all the mappings. The mappings tell us which name component
     #comes from where and what should be the order of the components
+
+    #library would throw exceptions, if any
     parsedConfig = conf_file_parser.ParseConf(configPath)
-    res = parsedConfig.getMappings()
+
 
     #do the translation
-    ndnName = translate.translate(parsedConfig, dataFilepath)
+    ndnNames = translate.translate(parsedConfig, dataFilepath)
     if __debug__:
-      print("NDN name in main: %s" %(ndnName))
+      print("NDN names in atmos_translate module: %s" %(ndnNames))
+    return ndnNames
+
 
 def main():
-    '''parse command line arguments, gives back configFilename and dataFilename
-    we then pass these to the subsequent modules.'''
+
+    '''This main is for debug only, run with the debug flag on.
+    Otherwise call argsForTranslation from a wrapper function'''
 
     userArgs = cmd_arg_parser.InputParser()
     userArgs.parse()
     configFile = userArgs.confFilepath
-    print("config file '%s', data path '%s'" %(configFile, userArgs.dataFilepath))
     if __debug__:
         print("config file '%s', data path '%s'" %(configFile, userArgs.dataFilepath))
 
     #call the translator module
-    argsForTranslation(userArgs.dataFilepath, configFile)
+    ndnNames = argsForTranslation(userArgs.dataFilepath, configFile)
+
 
 if __name__ == '__main__':
     main()

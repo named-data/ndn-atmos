@@ -27,27 +27,32 @@ import configparser
 import sys, traceback
 
 class ParseConf(object):
-    '''parses the name schema file and returns name mappings for translated
-    output'''
-    def __init__(self, confName=None):
-        self.confFile = confName
-        if self.confFile is None:
-            raise Exception("No configuration file given to parse config")
+    '''parses the name schema file and returns name mappings for translated output'''
+    def __init__(self, confName):
+        self.confName = confName
+        if __debug__:
+            print("Config file name: %s" %(self.confName))
+
         self.filenameMap = []
         self.ndnNameMap = []
         self.seperatorsMap = []
         self.userDefinedConfDir = {}
         self.translator = []
 
-        if __debug__:
-            print(self.confFile)
-
+        #initialize the parser
         self.parser = configparser.SafeConfigParser()
         self.parser.optionxform=str
-        self.parser.read(self.confFile)
+        self.parser.read(self.confName)
         self.fullConf = {}
 
-        #parser now contain a dictionary with the sections in conf
+        #do the mapping
+        res = self.getMappings(confName)
+        if res is False:
+          print("Error getting values from config file")
+          raise error.with_traceback(sys.exc_info()[2])
+
+
+    def _parseConf(self):
         #iterate over them and store the name components in fullConf
         try:
             for sectionName in self.parser.sections():
@@ -57,25 +62,47 @@ class ParseConf(object):
                 self.fullConf[sectionName] = self.conf
             if __debug__:
                 print(self.fullConf)
-        except (KeyError, TypeError):
-            raise error.with_traceback(sys.exc_info()[2])
+        except KeyError:
+            print("Key %s is not found in config file" %(name))
+            print(sys.exc_info()[2])
+        except TypeError:
+            print("TypeError while parsing config file")
+            print(sys.exc_info()[2])
+        return self.fullConf
 
-    def getMappings(self):
-        '''parses the schema file and provides name mappings'''
+    def _doParsing(self):
+        #parser now contain a dictionary with the sections in conf
+        # first elements are section and second ones are variables defined in config file
         try:
             self.filenameMap = self.fullConf['Name']['filenameMapping'].replace(" ", "").split(',')
-
             self.ndnNameMap = self.fullConf['Name']['ndnMapping'].replace(" ", "").split(',')
+
             # user defined components look like this
             #activity:cmip5, subactivity:atmos, organization:csu, ensemble:r3i1p1
             userDefinedConf = self.fullConf['Name']['userDefinedComps'].replace(" ", "").split(',')
             for item in userDefinedConf:
                 key, value = item.split(":")
                 self.userDefinedConfDir[key] = [value]
-
             self.seperatorsMap = self.fullConf['Name']['seperators'].replace(" ", "").split(',')
-
             #reads which translator to use
             self.translator = self.fullConf['Translator']['translator'].replace(" ", "")
-        except (KeyError, TypeError):
-            raise error.with_traceback(sys.exc_info()[2])
+        except KeyError:
+            print("Key %s is not found in config file" %(name))
+            print(sys.exc_info()[2])
+        except TypeError:
+            print("TypeError while parsing config file")
+            print(sys.exc_info()[2])
+
+    def getMappings(self, confName):
+        '''parses the schema file and provides name mappings'''
+        fullConf = self._parseConf()
+        #if dict is not empty
+        if fullConf:
+          res = self._doParsing()
+          if len(self.filenameMap) == 0 or len(self.ndnNameMap) == 0 or len(self.translator) == 0:
+            return False
+          else:
+            return True
+        else:
+          return False
+

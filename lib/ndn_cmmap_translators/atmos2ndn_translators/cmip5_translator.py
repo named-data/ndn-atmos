@@ -76,7 +76,7 @@ class Cmip5NameTranslator(object):
       filenameMap = parsedConfig.filenameMap
       ndnNameMap = parsedConfig.ndnNameMap
       seperatorsMap = parsedConfig.seperatorsMap
-      confName = parsedConfig.confFile
+      confName = parsedConfig.confName
       fileCompDict = {}
       metadataCompDict = {}
 

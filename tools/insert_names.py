@@ -91,7 +91,7 @@ def insertName(cursor, name):
     print("Inserted record %s" %(name))
     return True
   except sql.Error as err:
-    print("Error inserting name %s" %(err.msg))
+    print("Error inserting name %s, \nError:%s" %(name, err.msg))
     return False
 
 if __name__ == '__main__':
@@ -100,6 +100,10 @@ if __name__ == '__main__':
 
   #do the translation, the library should provide error messages, if any
   ndnNames = atmos_translator.argsForTranslation(datafilePath, configFilepath)
+  if ndnNames is False:
+    print("Error parsing config file, exiting")
+    sys.exit(-1)
+
   if len(ndnNames) == 0:
     print("No name returned from the translator, exiting.")
     sys.exit(-1)
