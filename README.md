@@ -2,7 +2,7 @@ ndn-atmos
 ============
 
 ### This is pre-release software
-####If you have trouble running it, drop an email to <ndn-sci@netsec.colostate.edu>.
+####If you have trouble running it, subscribe to <a href=http://www.netsec.colostate.edu/mailman/listinfo/ndn-sci> ndn-sci mailing list </a> and send an email.
 
  This software is designed to support ongoing climate model research at Colorado State University,
  Berkeley and other institutes. Future plan includes porting this tool to suite other scientific
