@@ -117,12 +117,15 @@ Follow the steps below to compile and install ndn-atmos:
   ./build/catalog/unit-tests
 </pre>
 
-* Note that you may need to set the LD_LIBRARY_PATH to include the path where the ndn-cxx shared
-library is installed. For example:
+* Note that if you are using Fedora or Ubuntu, you may need to create a configuration file for
+ndn-cxx in /etc/ld.so.conf.d to include the path where the libndn-cxx.so is installed. Then
+update using command below:
 <pre>
-  export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   ldconfig
 </pre>
+
+*For example, if the libndn-cxx.so is installed in /usr/local/lib64, you need to include
+this path in a "ndn-cxx.conf" file in /etc/ld.so.conf.d directory, and then run "ldconfig".
 
 
 Running ndn-atmos
@@ -175,12 +178,15 @@ NFD is the NDN forwarding daemon.
     nfd-start
 </pre>
 
-* Note that you may need to set the LD_LIBRARY_PATH to include the path where the ndn-cxx shared
-library is installed. For example:
+* Note that if you are using Fedora or Ubuntu, you may need to create a configuration file for
+ndn-cxx in /etc/ld.so.conf.d to include the path where the libndn-cxx.so is installed. Then
+update using command below:
 <pre>
-  export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
   ldconfig
 </pre>
+
+*For example, if the libndn-cxx.so is installed in /usr/local/lib64, you need to include
+this path in a "ndn-cxx.conf" file in /etc/ld.so.conf.d directory, and then run "ldconfig".
 
 
 Launching atmos-catalog
