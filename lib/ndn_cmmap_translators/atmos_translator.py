@@ -22,8 +22,8 @@
 
 '''Translates a netcdf filename to a NDN name'''
 
-from atmos2ndn_parser import conf_file_parser, cmd_arg_parser
-from atmos2ndn_translators import translate
+from ndn_cmmap_translators.atmos2ndn_parser import conf_file_parser, cmd_arg_parser
+from ndn_cmmap_translators.atmos2ndn_translators import translate
 
 def argsForTranslation(dataFilepath, configPath):
     '''this module does the actual translation calls'''

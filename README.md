@@ -32,7 +32,10 @@ Dependencies
 
  *  For OSX, the prerequisites can be installed using Homebrew:
 <pre>
-    brew install boost sqlite3 mysql jsoncpp
+    brew install boost sqlite3 mysql jsoncpp hdf5 openssl cryptopp protobuf
+    pip3 install mysql-connector-python --allow-all-external
+    pip3 install netCDF4
+
 </pre>
 
  * For Ubuntu, use the command below to install the prerequisites:
@@ -40,8 +43,12 @@ Dependencies
     sudo apt-get install libboost-all-dev libssl-dev libcrypto++-dev \
                         libsqlite3-dev libmysqlclient-dev libjsoncpp-dev \
                         protobuf-compiler libprotobuf-dev netcdf4-python \
-                        python3-mysql.connector
+                        python3-mysql.connector python3-pip libhdf5-dev \
+                        libnetcdf-dev python3-numpy
+
+  sudo pip3 install netCDF4
 </pre>
+
  * For Fedora, use the command below to install the prerequisites:
 <pre>
     sudo yum install boost-devel openssl-devel cryptopp-devel sqlite3x-devel \
@@ -125,7 +132,7 @@ Install translator library
 ---------------------------
 1. For the translator, ndn_cmmap_translator library is required to be in PYTHONPATH
 <pre>
-     export PYTHONPATH="full path to /ndn-atmos/lib/ndn_cmmap_translators":$PYTHONPATH
+     export PYTHONPATH="full path to /ndn-atmos/lib":$PYTHONPATH
 </pre>
 
 
@@ -207,7 +214,7 @@ Starting front end
 <pre>
   git clone http://github.com/named-data/ndn-js.git
   cd ndn-js
-  git checkout v0.8.1 (or the latest version)
+  git checkout v0.8.1
 </pre>
 
 * Start python simple server in the client folder (ndn-atmos/client)

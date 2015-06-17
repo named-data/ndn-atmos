@@ -28,8 +28,8 @@ import re
 import netCDF4
 import glob
 import os
-from atmos2ndn_parser import cmd_arg_parser
-from atmos2ndn_parser import conf_file_parser
+from ndn_cmmap_translators.atmos2ndn_parser import cmd_arg_parser
+from ndn_cmmap_translators.atmos2ndn_parser import conf_file_parser
 from . import cmip5_translator
 
 def translate(parsedConfig, dataFilepath):
