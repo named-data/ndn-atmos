@@ -1,0 +1,3 @@
+[submodule "client/query/ndn-js"]
+	path = client/query/ndn-js
+	url = http://gerrit.named-data.net/ndn-js
