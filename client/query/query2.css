@@ -13,3 +13,7 @@ html, body {
   max-height: 100%;
   overflow: auto;
 }
+
+.resultTable tr:nth-child(even) {
+  background-color: lightgray;
+}

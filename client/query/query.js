@@ -1,13 +1,13 @@
-// {@ @todo: this need to be configured before the document load
+//{@ @todo: this need to be configured before the document load
 var catalog = "/catalog/myUniqueName";
-var face = new FaceInstance({
-  host: "localhost",
+var face = new Face({
+  host: "atmos-csu.research-lan.colostate.edu",
   port: 9696
 });
 
 // @}
 
-var searchMenuOptions = {};
+var searchMenuOptions = {}
 var results = [];
 var resultCount = 0;
 var page = 1;
@@ -19,7 +19,7 @@ $(function () {
   var searchMenu = $("#side-menu");
   var currentPage = $(".page");
   var resultTable = $(".resultTable");
-  var data = $.getJSON("search_catagories.json", function (data) { //url, success
+  var data = $.getJSON("search_catagories.json").done(function (data) {
     $.each(data, function (pageSection, contents) {
       if (pageSection == "SearchCatagories") {
         $.each(contents, function (search, searchOptions) {
@@ -60,15 +60,15 @@ var state = {};
 function query(prefix, parameters, callback, pipeline) {
   results = [];
   dropdown = [];
-
   var resultTable = $(".resultTable");
   resultTable.empty();
-  resultTable.append('<tr><td>Results</td></tr>');
+  resultTable.append('<tr><th>Results</th></tr>');
 
   var queryPrefix = new Name(prefix);
-  queryPrefix.add("query");
+  queryPrefix.append("query");
 
-  queryPrefix.add(JSON.stringify(parameters));
+  var jsonString = JSON.stringify(parameters);
+  queryPrefix.append(jsonString);
 
   state = {
       prefix: new Name(prefix),
@@ -122,12 +122,11 @@ function onQueryData(interest, data) {
 function onQueryResultsData(interest, data) {
   var name = data.getName();
   delete state["outstanding"][interest.getName().toUri()];
-
-  if (!name.get(-1).equals(new Name.Component("END"))) {
+  if (!name.get(-1).equals(data.getMetaInfo().getFinalBlockId())) {
     expressNextInterest();
-  } else {
-    alert("found final block");
-  }
+  } //else {
+    //alert("found final block");
+  //}
 
   state["userOnData"](data);
 }
@@ -179,11 +178,11 @@ var currentViewIndex = 0;
 function populateResults(startIndex) {
   var resultTable = $(".resultTable");
   resultTable.empty();
-  resultTable.append('<tr><td>Results</td></tr>');
+  resultTable.append('<tr><th colspan="2">Results</th></tr>');
 
 
   for (var i = startIndex; i < startIndex + 20 && i < results.length; ++i) {
-    resultTable.append('<tr><td>' + results[i] + '</td></tr>');
+    resultTable.append('<tr><td>' + results[i] + '</td><td><button class="interest-button">Express Interest</button></td></tr>');
   }
 
   if (results.length <= 20) {
@@ -207,7 +206,7 @@ function populateResults(startIndex) {
         || (i <= page && i + 5 >= page)    // in our current page range
         || (i >= page && i - 5 <= page)) { // in our current page range
       if (i != page) {
-        currentPage.append(' <a href="#" onclick="getPage(' + i + ');">' + i + '</a>');
+        currentPage.append(' <a href="#" onclick="getPage(' + i + ');">' + i + '</a>')
         if (i == 1 && page > i + 5) {
           currentPage.append(' ... ');
         }
@@ -218,7 +217,7 @@ function populateResults(startIndex) {
       if (i == page + 6) {
         currentPage.append(' ... ');
 
-        currentPage.append(' <a href="#" onclick="getPage(this.id);" id=">">></a>');
+        currentPage.append(' <a href="#" onclick="getPage(this.id);" id=">">></a>')
         i = totalPages - 1;
       }
     }
@@ -240,7 +239,7 @@ function getDropDown(str) {
       if (search === str) {
         searchMenu.find("#" + search).append('<ul id="options_' + search + '" class="sub-menu">');
         for (var i = 0; i < fields.length; ++i) {
-          searchMenu.find("#options_" + search).append('<li id="' + fields[i] + '"onclick="submitCatalogSearch(this.id)"><a href="#">' + fields[i] + '</a></li>');
+          searchMenu.find("#options_" + search).append('<li id="' + fields[i] + '" onclick="submitCatalogSearch(this.id)"><a href="#">' + fields[i] + '</a></li>');
         }
         searchMenu.append('</ul>');
       } else {

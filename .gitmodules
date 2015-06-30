@@ -1,3 +1,12 @@
 [submodule "client/query/ndn-js"]
-	path = client/query/ndn-js
+	path = client/ndn-js
 	url = http://gerrit.named-data.net/ndn-js
+[submodule "client/ndn-js"]
+	path = client/ndn-js
+	url = ssh://tyduptyler13@gerrit.named-data.net:29418/ndn-js
+[submodule "ndn-cxx"]
+	path = ndn-cxx
+	url = https://github.com/named-data/ndn-cxx.git
+[submodule "ChronoSync"]
+	path = ChronoSync
+	url = https://github.com/named-data/ChronoSync.git
