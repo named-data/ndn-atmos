@@ -1,7 +1,7 @@
 //{@ @todo: this need to be configured before the document load
 var catalog = "/catalog/myUniqueName";
 var face = new Face({
-  host: "atmos-csu.research-lan.colostate.edu",
+  host: "localhost",
   port: 9696
 });
 
@@ -31,7 +31,29 @@ $(function () {
       }
     });
   });
+  
+  $('.resultTable').on('click', '.interest-button', function(){
+    console.log('Got click', this);
+    
+    var t = $(this);
+    
+    var name = t.parent().prev().text();
+    var interest = new Interest(new Name('/retrieve' + name));
+    face.expressInterest(interest, function(){
+      var message = $('<span class="success glyphicon glyphicon-ok"></span> Success');
+      t.append(t);
+      t.fadeOut(2000);
+    }, function(){
+      var message = $('<span class="fail glyphicon glyphicon-remove"></span> Failed!');
+      t.append(t);
+      t.fadeOut(2000);
+    });
+    
+  });
+  
 });
+
+
 
 function onData(data) {
   var payloadStr = data.content.toString().split("\n")[0];
@@ -62,7 +84,7 @@ function query(prefix, parameters, callback, pipeline) {
   dropdown = [];
   var resultTable = $(".resultTable");
   resultTable.empty();
-  resultTable.append('<tr><th>Results</th></tr>');
+  resultTable.append('<tr><th colspan="2">Results</th></tr>');
 
   var queryPrefix = new Name(prefix);
   queryPrefix.append("query");
@@ -182,7 +204,8 @@ function populateResults(startIndex) {
 
 
   for (var i = startIndex; i < startIndex + 20 && i < results.length; ++i) {
-    resultTable.append('<tr><td>' + results[i] + '</td><td><button class="interest-button">Express Interest</button></td></tr>');
+    resultTable.append('<tr><td>' + results[i]
+    + '</td><td><button class="interest-button btn btn-default btn-xs">Express Interest</button></td></tr>');
   }
 
   if (results.length <= 20) {
