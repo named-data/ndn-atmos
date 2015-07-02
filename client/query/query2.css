@@ -10,10 +10,10 @@ html, body {
   overflow: auto;
 }
 
-fail {
+.fail {
   color: red;
 }
 
-sucess {
+.sucess {
   color: green;
 }

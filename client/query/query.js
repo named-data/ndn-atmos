@@ -1,117 +1,140 @@
 //{@ @todo: this need to be configured before the document load
 var catalog = "/catalog/myUniqueName";
-var face = new Face({
-  host: "localhost",
+var config = {
+  host: "atmos-csu.research-lan.colostate.edu",
   port: 9696
-});
+};
 
 // @}
 
-var searchMenuOptions = {}
-var results = [];
-var resultCount = 0;
-var page = 1;
-var totalPages = 1;
-var selectedSearch = {};
-var dropdown = [];
+var Atmos = {}; //Placeholder for the class.
 
-$(function () {
-  var searchMenu = $("#side-menu");
-  var currentPage = $(".page");
-  var resultTable = $(".resultTable");
-  var data = $.getJSON("search_catagories.json").done(function (data) {
-    $.each(data, function (pageSection, contents) {
-      if (pageSection == "SearchCatagories") {
-        $.each(contents, function (search, searchOptions) {
-          search = search.replace(/\_/g, " ");
+(function(){
+  "use strict"; //Magic (If you really wanna know, look it up.)
 
-          searchMenu.append('<li id="' + search + '" onclick="getDropDown(this.id)"><a href="#">' + search + '</a></li>');
-          searchMenuOptions[String(search)] = searchOptions;
-        });
+  function Atmos(catalog, config){
+    //Internal variables.
+    this.searchMenuOptions = {}
+    this.results = []
+    this.resultCount = 0;
+    this.page = 1;
+    this.totalPages = 1;
+    this.selectedSearch = {};
+    this.dropdown = [];
+    this.state = {};
+    this.currentViewIndex = 0;
+
+    this.face = new Face(config);
+    this.categories = $('#side-menu');
+    this.resultTable = $('#resultTable');
+
+    var scope = this;
+
+    this.resultTable.on('click', '.interest-button', function(){
+      var button = $(this);
+
+      var name = button.parent().prev().text();
+      var interest = new Interest(new Name('/retrieve' + name));
+      scope.face.expressInterest(interest, function(){
+        var message = $('<div class="success"><span class="glyphicon glyphicon-ok"></span> Success!</div>');
+        message.insertAfter(button);
+        message.fadeOut(5000);
+      }, function(){
+        var message = $('<div class="fail"><span class="glyphicon glyphicon-remove"></span> Failed!</div>');
+        message.insertAfter(button);
+        message.fadeOut(5000);
+      });
+
+    });
+
+    $.getJSON("search_catagories.json").done(function (data) {
+      $.each(data, function (pageSection, contents) {
+        if (pageSection == "SearchCatagories") {
+          $.each(contents, function (search, searchOptions) {
+            search = search.replace(/\_/g, " ");
+
+            searchMenu.append('<li id="' + search + '" onclick="getDropDown(this.id)"><a href="#">' + search + '</a></li>');
+            scope.searchMenuOptions[String(search)] = searchOptions;
+          });
+        }
+      });
+    });
+
+  }
+
+  Atmos.prototype.onData = function(data) {
+    var payloadStr = data.content.toString().split("\n")[0];
+
+    var queryResults = JSON.parse(payloadStr);
+
+    var scope = this;
+
+    $.each(this.queryResults, function (queryResult, field) {
+
+      if (queryResult == "next") {
+        scope.populateAutocomplete(field);
       }
+
+      $.each(field, function (entryCount, name) {
+        scope.results.push(name);
+      });
     });
-  });
-  
-  $('.resultTable').on('click', '.interest-button', function(){
-    console.log('Got click', this);
-    
-    var t = $(this);
-    
-    var name = t.parent().prev().text();
-    var interest = new Interest(new Name('/retrieve' + name));
-    face.expressInterest(interest, function(){
-      var message = $('<span class="success glyphicon glyphicon-ok"></span> Success');
-      t.append(t);
-      t.fadeOut(2000);
-    }, function(){
-      var message = $('<span class="fail glyphicon glyphicon-remove"></span> Failed!');
-      t.append(t);
-      t.fadeOut(2000);
-    });
-    
-  });
+
+    // Calculating the current page and the view
+    this.totalPages = Math.ceil(this.resultCount / 20);
+    this.populateResults(0);
+  }
+
+  Atmos.prototype.query = function(prefix, parameters, callback, pipeline) {
+    this.results = [];
+    this.dropdown = [];
+    this.resultTable.empty();
+    this.resultTable.append('<tr><th colspan="2">Results</th></tr>');
+
+    var queryPrefix = new Name(prefix);
+    queryPrefix.append("query");
+
+    var jsonString = JSON.stringify(parameters);
+    queryPrefix.append(jsonString);
+
+    this.state = {
+        prefix: new Name(prefix),
+        userOnData: callback,
+        outstanding: {},
+        nextSegment: 0,
+    };
+
+    /*if (state.hasOwnProperty("version")) {
+                  console.log("state already has version");
+              }*/
+
+    var queryInterest = new Interest(queryPrefix);
+    queryInterest.setInterestLifetimeMilliseconds(10000);
+
+    var scope = this;
+
+    this.face.expressInterest(queryInterest,
+      function(){
+        onQueryData()
+      }, function(){
+        onQueryTimeout()
+      }
+    );
+
+    this.state["outstanding"][queryInterest.getName().toUri()] = 0;
+  }
+
+})(); //Run as soon as the script loads but keep the "use strict"" from escaping to the global space.
+
+
+var atmos = {}; //Comment this out if you don't want debug access.
+
+//Run when the document loads.
+$(function () {
+
+  atmos = new Atmos(catalog, config);
   
 });
-
-
-
-function onData(data) {
-  var payloadStr = data.content.toString().split("\n")[0];
-
-  var queryResults = JSON.parse(payloadStr);
-
-  var resultTable = $(".resultTable");
-  $.each(queryResults, function (queryResult, field) {
-
-    if (queryResult == "next") {
-      populateAutocomplete(field);
-    }
-
-    $.each(field, function (entryCount, name) {
-      results.push(name);
-    });
-  });
-
-  // Calculating the current page and the view
-  totalPages = Math.ceil(resultCount / 20);
-  populateResults(0);
-}
-
-var state = {};
-
-function query(prefix, parameters, callback, pipeline) {
-  results = [];
-  dropdown = [];
-  var resultTable = $(".resultTable");
-  resultTable.empty();
-  resultTable.append('<tr><th colspan="2">Results</th></tr>');
-
-  var queryPrefix = new Name(prefix);
-  queryPrefix.append("query");
-
-  var jsonString = JSON.stringify(parameters);
-  queryPrefix.append(jsonString);
-
-  state = {
-      prefix: new Name(prefix),
-      userOnData: callback,
-      outstanding: {},
-      nextSegment: 0,
-  };
-
-  /*if (state.hasOwnProperty("version")) {
-                console.log("state already has version");
-            }*/
-
-  var queryInterest = new Interest(queryPrefix);
-  queryInterest.setInterestLifetimeMilliseconds(10000);
-
-  face.expressInterest(queryInterest,
-      onQueryData,
-      onQueryTimeout);
-
-  state["outstanding"][queryInterest.getName().toUri()] = 0;
-}
 
 function expressNextInterest() {
   // @todo pipelines
@@ -195,7 +218,7 @@ function onQueryResultsTimeout(interest) {
 }
 
 
-var currentViewIndex = 0;
+
 
 function populateResults(startIndex) {
   var resultTable = $(".resultTable");
