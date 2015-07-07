@@ -1,6 +1,3 @@
-[submodule "client/query/ndn-js"]
-	path = client/ndn-js
-	url = http://gerrit.named-data.net/ndn-js
 [submodule "client/ndn-js"]
 	path = client/ndn-js
 	url = ssh://tyduptyler13@gerrit.named-data.net:29418/ndn-js

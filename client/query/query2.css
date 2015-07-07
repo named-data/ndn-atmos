@@ -17,3 +17,11 @@ html, body {
 .sucess {
   color: green;
 }
+
+.subnav {
+  display: none;
+  max-height: 500px;
+  overflow: auto;
+  margin-left: 15px;
+  border-left: gray 3px solid;
+}

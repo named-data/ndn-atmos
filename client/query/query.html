@@ -46,11 +46,17 @@
             <div class="currentSelections"></div>
             <div class="autocomplete">
               <div class="ui-widget">
-                <label for="tags"> Search: </label> <input id="autocompleteText"
-                  placeholder="/cmip" class="textbox"
-                  onkeydown="if (event.keyCode == 13) submitAutoComplete(); ">
-                <button id="autoButton" value="Search"
-                  onclick="submitAutoComplete()" id="autocompleteButton">Search</button>
+                <form class="form-inline" id="searchBar">
+                  <div class="form-group">
+                    <label for="searchBar">Search:&nbsp;</label>
+                    <div class="input-group">
+                      <input id="search" placeholder="/cmip" type="text" class="form-control">
+                      <div class="input-group-btn">
+                        <button id="searchButton" type="submit" class="btn btn-primary">Search</button>
+                      </div>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
           </div>
