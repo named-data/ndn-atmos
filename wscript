@@ -90,7 +90,7 @@ def build (bld):
         features='cxx',
         source=bld.path.ant_glob(['catalog/src/**/*.cpp'],
                                  excl=['catalog/src/main.cpp']),
-        use='NDN_CXX BOOST JSON MYSQL',
+        use='NDN_CXX BOOST JSON MYSQL SYNC',
         includes='catalog/src .',
         export_includes='catalog/src .'
     )

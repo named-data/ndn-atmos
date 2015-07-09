@@ -27,6 +27,7 @@ export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:\
 /usr/local/lib32/pkgconfig:\
 /usr/local/lib64/pkgconfig
 
+sudo ldconfig || true
 ./waf configure -j1 --color=yes
 ./waf -j1 --color=yes
 sudo ./waf install -j1 --color=yes

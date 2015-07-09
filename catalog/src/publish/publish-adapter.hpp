@@ -21,6 +21,7 @@
 
 #include "util/catalog-adapter.hpp"
 #include "util/mysql-util.hpp"
+#include <mysql/mysql.h>
 
 #include <json/reader.h>
 #include <json/value.h>
@@ -31,8 +32,7 @@
 #include <ndn-cxx/interest-filter.hpp>
 #include <ndn-cxx/name.hpp>
 #include <ndn-cxx/security/key-chain.hpp>
-#include <ndn-cxx/security/validator.hpp>
-#include "mysql/mysql.h"
+#include <ndn-cxx/security/validator-config.hpp>
 
 #include <memory>
 #include <string>
@@ -41,6 +41,7 @@
 
 namespace atmos {
 namespace publish {
+
 /**
  * PublishAdapter handles the Publish usecases for the catalog
  */
@@ -107,13 +108,23 @@ protected:
   void
   setFilters();
 
+   /**
+   * Function to validate publication changes against the trust model, which is, all file
+   * names must be under the publisher's prefix. This function should be called by a callback
+   * function invoked by validator
+   *
+   * @param data: received data from the publisher
+   */
+  bool
+  validatePublicationChanges(const std::shared_ptr<const ndn::Data>& data);
+
 protected:
   typedef std::unordered_map<ndn::Name, const ndn::RegisteredPrefixId*> RegisteredPrefixList;
   // Prefix for ChronoSync
   ndn::Name m_syncPrefix;
   // Handle to the Catalog's database
   std::shared_ptr<DatabaseHandler> m_databaseHandler;
-  std::shared_ptr<ndn::Validator> m_validaor;
+  std::unique_ptr<ndn::ValidatorConfig> m_publishValidator;
   RegisteredPrefixList m_registeredPrefixList;
 };
 
@@ -130,13 +141,14 @@ void
 PublishAdapter<DatabaseHandler>::setFilters()
 {
   ndn::Name publishPrefix = ndn::Name(m_prefix).append("publish");
-  m_registeredPrefixList[publishPrefix] = m_face->setInterestFilter(publishPrefix,
-                                                                    bind(&publish::PublishAdapter<DatabaseHandler>::onPublishInterest,
-                                                                         this, _1, _2),
-                            bind(&publish::PublishAdapter<DatabaseHandler>::onRegisterSuccess,
-                                 this, _1),
-                            bind(&publish::PublishAdapter<DatabaseHandler>::onRegisterFailure,
-                                 this, _1, _2));
+  m_registeredPrefixList[publishPrefix] =
+    m_face->setInterestFilter(publishPrefix,
+                              bind(&PublishAdapter<DatabaseHandler>::onPublishInterest,
+                                   this, _1, _2),
+                              bind(&publish::PublishAdapter<DatabaseHandler>::onRegisterSuccess,
+                                   this, _1),
+                              bind(&publish::PublishAdapter<DatabaseHandler>::onRegisterFailure,
+                                   this, _1, _2));
 }
 
 template <typename DatabaseHandler>
@@ -184,9 +196,12 @@ PublishAdapter<DatabaseHandler>::onConfig(const util::ConfigSection& section,
                                 " in \"publish\" section");
       }
     }
-
-    // @todo: parse the published_file_security section
-
+    else if (item->first == "security") {
+      // when use, the validator must specify the callback func to handle the validated data
+      // it should be called when the Data packet that contains the published file names is received
+      m_publishValidator.reset(new ndn::ValidatorConfig(m_face.get()));
+      m_publishValidator->load(item->second, filename);
+    }
     else if (item->first == "database") {
       const util::ConfigSection& databaseSection = item->second;
       for (auto subItem = databaseSection.begin();
@@ -279,7 +294,41 @@ void
 PublishAdapter<DatabaseHandler>::onPublishedData(const ndn::Interest& interest,
                                                  const ndn::Data& data)
 {
-  // @todo handle publishing the data
+  // @todo handle data publication
+}
+
+template<typename DatabaseHandler>
+bool
+PublishAdapter<DatabaseHandler>::validatePublicationChanges(const std::shared_ptr<const ndn::Data>& data)
+{
+  // The data name must be "/<publisher-prefix>/<nonce>"
+  // the prefix is the data name removes the last component
+  ndn::Name publisherPrefix = data->getName().getPrefix(-1);
+
+  const std::string payload(reinterpret_cast<const char*>(data->getContent().value()),
+                            data->getContent().value_size());
+  Json::Value parsedFromString;
+  Json::Reader reader;
+  if (!reader.parse(payload, parsedFromString)) {
+    // parse error, log events
+    std::cout << "Cannot parse the published data " << data->getName() << " into Json" << std::endl;
+    return false;
+  }
+
+  // validate added files...
+  for (size_t i = 0; i < parsedFromString["add"].size(); i++) {
+    if (!publisherPrefix.isPrefixOf(
+          ndn::Name(parsedFromString["add"][static_cast<int>(i)].asString())))
+      return false;
+  }
+
+  // validate removed files ...
+  for (size_t i = 0; i < parsedFromString["remove"].size(); i++) {
+    if (!publisherPrefix.isPrefixOf(
+          ndn::Name(parsedFromString["remove"][static_cast<int>(i)].asString())))
+      return false;
+  }
+  return true;
 }
 
 } // namespace publish

@@ -31,10 +31,32 @@ publishAdapter
   ; ; Set the identity that signs published data
   ; signingId ndn:/cmip5/test/publish/identity
 
-  ; ; The published_file_security section contains the rules for the adapter to verify the
+  ; ; The security section contains the rules for the adapter to verify the
   ; ; published files indeed come from a valid publisher.
-  ; published_file_security
+  ; security
   ; {
+  ;   rule
+  ;   {
+  ;     id "NDN Hierarchy Test Rule"
+  ;     for data                             ; rule for Data (to validate NDN certificates)
+  ;     filter
+  ;     {
+  ;       type name                          ; condition on data name
+  ;       regex ^(<>*)$
+  ;     }
+  ;     checker
+  ;     {
+  ;       type hierarchical                  ; the certificate name of the signing key and
+  ;                                          ; the data name must follow the hierarchical model
+  ;       sig-type rsa-sha256                ; data must have a rsa-sha256 signature
+  ;     }
+  ;   }
+  ;   trust-anchor
+  ;   {
+  ;     type file
+  ;     file-name /directory/to/the/root.ndncert ; the file name, by default this file should be
+  ;                                              ; in same folder as this config file.
+  ;   }
   ; }
 
   ; The database section contains settings of database
