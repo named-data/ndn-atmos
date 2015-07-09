@@ -56,6 +56,17 @@ Catalog::onConfig(const util::ConfigSection& configSection,
                                  " in \"general\" section");
       }
     }
+    if (i->first == "nameFields") {
+      std::istringstream ss(i->second.get_value<std::string>());
+      std::string token;
+      while(std::getline(ss, token, ',')) {
+        m_nameFields.push_back(token);
+      }
+    }
+  }
+  if (m_nameFields.size() == 0) { // nameFields must not be empty
+    throw Error("Empty value for \"nameFields\""
+                             " in \"general\" section");
   }
 }
 
@@ -84,7 +95,7 @@ Catalog::initializeAdapters()
        i != m_adapters.end();
        ++ i)
   {
-    (*i)->setConfigFile(config, m_prefix);
+    (*i)->setConfigFile(config, m_prefix, m_nameFields);
   }
 
   config.parse(m_configFile, true);

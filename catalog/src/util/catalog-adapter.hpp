@@ -72,7 +72,8 @@ public:
    */
   virtual void
   setConfigFile(util::ConfigFile& config,
-                const ndn::Name& prefix) = 0;
+                const ndn::Name& prefix,
+                const std::vector<std::string>& nameFields) = 0;
 
 protected:
 
@@ -120,6 +121,7 @@ protected:
   ndn::Name m_prefix;
   // Name for the signing key
   ndn::Name m_signingId;
+  std::vector<std::string> m_nameFields;
 }; // class CatalogAdapter
 
 

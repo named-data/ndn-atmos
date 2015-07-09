@@ -1,5 +1,5 @@
 ; The catalog section contains settings of catalog
-general
+general:
 {
   ; Set the catalog prefix, so that adapters can extend it as their own prefix
   ; e.g., suppose that the catalog has the prefix "ndn:/cmip5", so QueryAdapter has the prefix
@@ -7,6 +7,10 @@ general
   ; PublishAdapter has the prefix "ndn:/cmip5/catalog/publish"
 
   prefix /catalog/myUniqueName
+
+  ; name fileds conatin name components for the scientifi data, for example, the climate data
+  ; contains name fileds like activity, ..., time
+  nameFields activity,product,organization,model,experiment,frequency,modeling_realm,variable_name,ensemble,time
 }
 
 ; The queryAdapter section contains settings of queryAdapter

@@ -65,7 +65,8 @@ public:
    */
   void
   setConfigFile(util::ConfigFile& config,
-                const ndn::Name& prefix);
+                const ndn::Name& prefix,
+                const std::vector<std::string>& nameFields);
 
 protected:
   /**
@@ -163,8 +164,10 @@ PublishAdapter<DatabaseHandler>::~PublishAdapter()
 template <typename DatabaseHandler>
 void
 PublishAdapter<DatabaseHandler>::setConfigFile(util::ConfigFile& config,
-                                               const ndn::Name& prefix)
+                                               const ndn::Name& prefix,
+                                               const std::vector<std::string>& nameFields)
 {
+  m_nameFields = nameFields;
   config.addSectionHandler("publishAdapter",
                            bind(&PublishAdapter<DatabaseHandler>::onConfig, this,
                                 _1, _2, _3, prefix));
