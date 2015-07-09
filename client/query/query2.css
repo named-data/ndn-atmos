@@ -25,3 +25,47 @@ html, body {
   margin-left: 15px;
   border-left: gray 3px solid;
 }
+
+#filters {
+  margin-bottom: 10px;
+  visibility: visible;
+  opacity: 1;
+  transition: visibility 1s ease-out, opacity 1s ease-out, margin-bottom 1s ease-out;
+}
+
+#filters .label {
+  /* display: none; */
+  font-size: inherit;
+  transition: background-color 1s, 
+  
+  border-color 2s;
+}
+
+#filters .label:hover {
+  /* font-size: 0; */
+  background-color: red;
+  border-color: red;
+}
+
+#filters .label:hover::before {
+  content: "Remove ";
+}
+
+#filters .label:hover::after {
+  content: "?";
+}
+
+#filters .label:not(:last-child) {
+  margin-right: 5px;
+}
+
+#filters:empty {
+  visibility: hidden;
+  opacity: 0;
+  margin-bottom: 0;
+}
+
+/* Magic filters text that won't get picked up in jquery.text */
+#filters:not(:empty)::before {
+  content: "Filters: ";
+}

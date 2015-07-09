@@ -18,10 +18,19 @@ $(function () {
 });
 
 /*
-  Atmos
-  Version 2
+  
 */
 
+/**
+ * Atmos
+ * @version 2.0
+ * 
+ * Configures an Atmos object. This manages the atmos interface.
+ * 
+ * @constructor 
+ * @param {string} catalog - NDN path
+ * @param {Object} config - Object of configuration options for a Face. 
+ */
 function Atmos(catalog, config){
   "use strict";
   //Internal variables.
@@ -34,9 +43,12 @@ function Atmos(catalog, config){
   this.state = {};
   this.currentViewIndex = 0;
 
+  this.catalog = catalog;
+
   this.face = new Face(config);
   this.categories = $('#side-menu');
   this.resultTable = $('#resultTable');
+  this.filters = $('#filters');
 
   var scope = this;
 
@@ -68,7 +80,7 @@ function Atmos(catalog, config){
             var item = $('<li><a href="#">' + name + '</a></li>');
             sub.append(item);
             item.click(function(){
-              scope.submitCatalogSearch(name);
+              scope.addFilter(name);
             });
           });
 
@@ -89,6 +101,7 @@ function Atmos(catalog, config){
 
   $('#searchBar').submit(function(e){
     e.preventDefault();
+    console.log("Search started!", $('#search'));
   })
 
 }
@@ -145,47 +158,28 @@ Atmos.prototype.query = function(prefix, parameters, callback, pipeline) {
   var scope = this;
 
   this.face.expressInterest(queryInterest,
-    function(){ //FIXME
-      scope.onQueryData.apply(scope, arguments); //TODO
-    }, function(){
-      scope.onQueryTimeout.apply(scope, arguments);
+    function(interest, data){
+      scope.onQueryData(interest, data);
+    }, function(interest){
+      scope.onQueryTimeout(interest);
     }
   );
 
   this.state["outstanding"][queryInterest.getName().toUri()] = 0;
 }
 
+/**
+ * @deprecated
+ * Use applyFilters/addFilters as appropriate.
+ */
 Atmos.prototype.submitCatalogSearch = function(field) {
-  console.log("Sumbit Catalog Search: " + field);
-  // @todo: this logic isn't quite right
-  var remove = false;
-  var scope = this;
-  $.each(scope.selectedSearch, function (search, f) {
-    if (field == f) {
-      delete scope.selectedSearch[field];
-      remove = true;
-    }
-  });
-  if (!remove) {
-    $.each(scope.searchMenuOptions, function (search, fields) {
-      $.each(fields, function (index, f) {
-        if (f == field) {
-          scope.selectedSearch[search] = field;
-        }
-      });
-    });
-  }
-  this.query(scope.catalog, scope.selectedSearch, function(){
-    scope.onData.apply(scope, arguments); //Unknown arguments. FIXME (Works but could be improved for readability)
-  }, 1);
-  scope.populateCurrentSelections();
-  return false;//?? Is this used?
+  console.warn("Use of deprecated function submitCatalogSearch! (Use applyFilters/addFilters as appropriate)");
 }
 
 Atmos.prototype.expressNextInterest = function() {
   // @todo pipelines
-  var nextName = new Name(state["results"]);
-  nextName.appendSegment(state["nextSegment"]);
+  var nextName = new Name(this.state["results"]);
+  nextName.appendSegment(this.state["nextSegment"]);
 
   var nextInterest = new Interest(nextName);
   nextInterest.setInterestLifetimeMilliseconds(10000);
@@ -193,11 +187,11 @@ Atmos.prototype.expressNextInterest = function() {
   var scope = this;
 
   this.face.expressInterest(nextInterest,
-      function(){
-        scope.onQueryResultsData.apply(scope, arguments); //FIXME
+      function(interest, data){
+        scope.onQueryResultsData(interest, data);
       },
-      function(){
-        scope.onQueryResultsTimeout.apply(scope, arguments); //FIXME
+      function(interest){
+        scope.onQueryResultsTimeout(interest);
       });
 
   this.state["nextSegment"] ++;
@@ -423,7 +417,55 @@ Atmos.prototype.populateAutocomplete = function(fields) {
   */
 }
 
-Atmos.prototype.populateCurrentSelections = function() { //TODO
+/**
+ * Adds a filter to the list of filters.
+ * There is no need to remove the filter, it is done via ui clicks.
+ * 
+ * @param {string} filter
+ */
+Atmos.prototype.addFilter = function(name){
+  var existing = this.filters.find('span:contains(' + name + ')');
+  if (existing.length){
+    //If the category is clicked twice, then we delete it.
+    existing.remove();
+    this.applyFilters();
+
+  } else {
+
+    var filter = $('<span class="label label-default"></span>');
+    filter.text(name);
+
+    this.filters.append(filter);
+
+    this.applyFilters();
+
+    var scope = this;
+    filter.click(function(){
+      $(this).remove();
+      scope.applyFilters();
+    });
+
+  }
+  
+}
+
+Atmos.prototype.applyFilters = function(){
+  var filters = this.filters.children().toArray().map(function(obj, index){
+      return $(obj).text();
+  }, []);
+  console.log('Collected filters:', filters);
+  this.query(this.catalog, filters, function(data){
+    scope.onData(data);
+  }, 1);
+}
+
+/**
+ * @deprecated
+ * Use addFilter instead.
+ */
+Atmos.prototype.populateCurrentSelections = function() {
+  console.warn("Use of deprecated function populateCurrentSelections! (Use addFilter instead)");
+  /*
   var currentSelection = $(".currentSelections");
   currentSelection.empty();
 
@@ -450,4 +492,5 @@ Atmos.prototype.populateCurrentSelections = function() { //TODO
   });
 
   currentSelection.append("</p>");
+  */
 }
