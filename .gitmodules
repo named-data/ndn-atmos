@@ -1,6 +1,6 @@
 [submodule "client/ndn-js"]
 	path = client/ndn-js
-	url = ssh://tyduptyler13@gerrit.named-data.net:29418/ndn-js
+	url = https://github.com/named-data/ndn-js.git
 [submodule "ndn-cxx"]
 	path = ndn-cxx
 	url = https://github.com/named-data/ndn-cxx.git

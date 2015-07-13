@@ -1,7 +1,7 @@
 //{@ @todo: this need to be configured before the document load
 var catalog = "/catalog/myUniqueName";
 var config = {
-  host: "atmos-csu.research-lan.colostate.edu",
+  host: "ndn-atmos.atmos.colostate.edu",
   port: 9696
 };
 
@@ -80,7 +80,7 @@ function Atmos(catalog, config){
             var item = $('<li><a href="#">' + name + '</a></li>');
             sub.append(item);
             item.click(function(){
-              scope.addFilter(name);
+              scope.addFilter(name, search);
             });
           });
 
@@ -146,6 +146,7 @@ Atmos.prototype.query = function(prefix, parameters, callback, pipeline) {
       userOnData: callback,
       outstanding: {},
       nextSegment: 0,
+      parameters: jsonString
   };
 
   /*if (state.hasOwnProperty("version")) {
@@ -205,7 +206,7 @@ Atmos.prototype.onQueryData = function(interest, data) {
 
   this.state["version"] = name.get(this.state["prefix"].size() + 2).toVersion();
 
-  this.state["results"] = new Name(this.state["prefix"]).append("query-results").appendVersion(this.state["version"]);
+  this.state["results"] = new Name(this.state["prefix"]).append("query-results").append(this.state['parameters']).appendVersion(this.state["version"]);
 
   this.expressNextInterest();
 }
@@ -228,11 +229,11 @@ Atmos.prototype.onQueryTimeout = function(interest) {
     this.state["outstanding"][uri] ++;
     var scope = this;
     this.face.expressInterest(interest,
-        function(){
-          scope.onQueryData.apply(scope, arguments);
+        function(interest, data){
+          scope.onQueryData(interest, data);
         },
-        function(){
-          scope.onQueryTimeout.apply(scope, arguments);
+        function(interest){
+          scope.onQueryTimeout(interest);
         });
   } else {
     delete this.state["outstanding"][uri];
@@ -423,7 +424,7 @@ Atmos.prototype.populateAutocomplete = function(fields) {
  * 
  * @param {string} filter
  */
-Atmos.prototype.addFilter = function(name){
+Atmos.prototype.addFilter = function(name, category){
   var existing = this.filters.find('span:contains(' + name + ')');
   if (existing.length){
     //If the category is clicked twice, then we delete it.
@@ -433,7 +434,7 @@ Atmos.prototype.addFilter = function(name){
   } else {
 
     var filter = $('<span class="label label-default"></span>');
-    filter.text(name);
+    filter.text(category + ':' + name);
 
     this.filters.append(filter);
 
@@ -450,9 +451,11 @@ Atmos.prototype.addFilter = function(name){
 }
 
 Atmos.prototype.applyFilters = function(){
-  var filters = this.filters.children().toArray().map(function(obj, index){
-      return $(obj).text();
-  }, []);
+  var filters = this.filters.children().toArray().reduce(function(prev, current){
+      var data = $(current).text().split(/:/);
+      prev[data[0]] = data[1];
+      return prev;
+  }, {});
   console.log('Collected filters:', filters);
   this.query(this.catalog, filters, function(data){
     scope.onData(data);
