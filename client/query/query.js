@@ -86,10 +86,10 @@ function Atmos(catalog, config){
             });
           });
 
-          //Toggle the menus.
-          e.click(function(){
+          //Toggle the menus. (Only respond when the immediate tab is clicked.)
+          e.find('> a').click(function(){
             scope.categories.find('.subnav').slideUp();
-            var t = $(this).find('.subnav');
+            var t = $(this).siblings('.subnav');
             if ( !t.is(':visible')){
               t.slideDown().triggerHandler('focus'); //Cancel other animations and slide down.
             }
@@ -111,33 +111,47 @@ function Atmos(catalog, config){
 Atmos.prototype.onData = function(data) {
   var payloadStr = data.content.toString().split("\n")[0];
 
+  if (!payloadStr || payloadStr.length === 0){
+    this.populateResults(0);
+    return; //No results were returned.
+  }
+
   var queryResults = JSON.parse(payloadStr);
 
   var scope = this;
 
   //TODO Fix paging.
 
-  $.each(queryResults, function (queryResult, field) {
+  try {
 
-    if (queryResult == "next") {
-      scope.populateAutocomplete(field);
-    }
+    $.each(queryResults, function (queryResult, field) {
 
-    $.each(field, function (entryCount, name) {
-      scope.results.push(name);
+      if (queryResult == "next") {
+        scope.populateAutocomplete(field);
+      }
+
+      if (queryResult == "results" && field == null){
+        return; //Sometimes the results are null. (We should skip this.)
+      }
+
+      $.each(field, function (entryCount, name) {
+        scope.results.push(name);
+      });
     });
-  });
 
-  // Calculating the current page and the view
-  this.totalPages = Math.ceil(this.resultCount / 20);
-  this.populateResults(0);
+    // Calculating the current page and the view
+    this.totalPages = Math.ceil(this.resultCount / 20);
+    this.populateResults(0);
+
+  } catch (e) {
+    console.error(e.message, e.stack);
+  }
 }
 
 Atmos.prototype.query = function(prefix, parameters, callback, pipeline) {
   this.results = [];
   this.dropdown = [];
   this.resultTable.empty();
-  this.resultTable.append('<tr><th colspan="2">Results</th></tr>');
 
   var queryPrefix = new Name(prefix);
   queryPrefix.append("query");
@@ -284,8 +298,7 @@ Atmos.prototype.onQueryResultsTimeout = function(interest) {
 
 Atmos.prototype.populateResults = function(startIndex) {
   this.resultTable.empty();
-  this.resultTable.append('<tr><th colspan="2">Results</th></tr>');
-
+  //this.resultTable.append('<tr><th colspan="2">Results</th></tr>');
 
   for (var i = startIndex; i < startIndex + 20 && i < this.results.length; ++i) {
     this.resultTable.append('<tr><td>' + this.results[i]
