@@ -39,6 +39,7 @@ html, body {
   transition: background-color 1s, 
   
   border-color 2s;
+  cursor: pointer;
 }
 
 #filters .label:hover {

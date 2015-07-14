@@ -1,7 +1,7 @@
 //{@ @todo: this need to be configured before the document load
 var catalog = "/catalog/myUniqueName";
 var config = {
-  host: "ndn-atmos.atmos.colostate.edu",
+  host: "atmos-csu.research-lan.colostate.edu",
   port: 9696
 };
 
@@ -55,17 +55,19 @@ function Atmos(catalog, config){
   this.resultTable.on('click', '.interest-button', function(){
     var button = $(this);
 
+    if (button.is(':disabled')){
+      console.warn("Attempt to request again!");
+    }
+
     var name = button.parent().prev().text();
     var interest = new Interest(new Name('/retrieve' + name));
-    scope.face.expressInterest(interest, function(){
-      var message = $('<div class="success"><span class="glyphicon glyphicon-ok"></span> Success!</div>');
-      message.insertAfter(button);
-      message.fadeOut(5000);
-    }, function(){
-      var message = $('<div class="fail"><span class="glyphicon glyphicon-remove"></span> Failed!</div>');
-      message.insertAfter(button);
-      message.fadeOut(5000);
-    });
+    scope.face.expressInterest(interest, function(){}, function(){});
+
+    button.text("Requested!")
+    .removeClass('btn-primary')
+    .addClass('btn-default')
+    .addClass('disabled')
+    .prop('disabled', true);
 
   });
 
@@ -113,7 +115,9 @@ Atmos.prototype.onData = function(data) {
 
   var scope = this;
 
-  $.each(this.queryResults, function (queryResult, field) {
+  //TODO Fix paging.
+
+  $.each(queryResults, function (queryResult, field) {
 
     if (queryResult == "next") {
       scope.populateAutocomplete(field);
@@ -284,8 +288,8 @@ Atmos.prototype.populateResults = function(startIndex) {
 
 
   for (var i = startIndex; i < startIndex + 20 && i < this.results.length; ++i) {
-    resultTable.append('<tr><td>' + this.results[i]
-    + '</td><td><button class="interest-button btn btn-default btn-xs">Retrieve</button></td></tr>');
+    this.resultTable.append('<tr><td>' + this.results[i]
+    + '</td><td><button class="interest-button btn btn-primary btn-xs">Retrieve</button></td></tr>');
   }
 
   if (this.results.length <= 20) {
@@ -318,7 +322,7 @@ Atmos.prototype.populateResults = function(startIndex) {
         currentPage.append(' ' + i);
       }
     } else { // Need to skip ahead
-      if (i == page + 6) {
+      if (i == this.page + 6) {
         currentPage.append(' ... ');
 
         currentPage.append(' <a href="#" onclick="getPage(this.id);" id=">">></a>')
@@ -420,7 +424,7 @@ Atmos.prototype.populateAutocomplete = function(fields) {
 
 /**
  * Adds a filter to the list of filters.
- * There is no need to remove the filter, it is done via ui clicks.
+ * If a filter is already added, it will be removed instead.
  * 
  * @param {string} filter
  */
@@ -457,6 +461,7 @@ Atmos.prototype.applyFilters = function(){
       return prev;
   }, {});
   console.log('Collected filters:', filters);
+  var scope = this;
   this.query(this.catalog, filters, function(data){
     scope.onData(data);
   }, 1);
