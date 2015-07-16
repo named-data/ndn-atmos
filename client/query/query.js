@@ -1,25 +1,13 @@
-//{@ @todo: this need to be configured before the document load
 var catalog = "/catalog/myUniqueName";
 var config = {
   host: "atmos-csu.research-lan.colostate.edu",
   port: 9696
 };
 
-// @}
-
-var atmos = {}; //Comment this out if you don't want debug access.
-
 //Run when the document loads.
 $(function () {
-  
-  //remove "atmos =" if you don't want debug access
-  atmos = new Atmos(catalog, config);
-  
+  new Atmos(catalog, config);
 });
-
-/*
-  
-*/
 
 /**
  * Atmos
@@ -112,7 +100,7 @@ Atmos.prototype.onData = function(data) {
   var payloadStr = data.content.toString().split("\n")[0];
 
   if (!payloadStr || payloadStr.length === 0){
-    this.populateResults(0);
+    this.populateResults();
     return; //No results were returned.
   }
 
@@ -120,32 +108,24 @@ Atmos.prototype.onData = function(data) {
 
   var scope = this;
 
-  //TODO Fix paging.
+  $.each(queryResults, function (queryResult, field) {
 
-  try {
+    if (queryResult == "next") {
+      scope.populateAutocomplete(field);
+    }
 
-    $.each(queryResults, function (queryResult, field) {
+    if (queryResult == "results" && field == null){
+      return; //Sometimes the results are null. (We should skip this.)
+    }
 
-      if (queryResult == "next") {
-        scope.populateAutocomplete(field);
-      }
-
-      if (queryResult == "results" && field == null){
-        return; //Sometimes the results are null. (We should skip this.)
-      }
-
-      $.each(field, function (entryCount, name) {
-        scope.results.push(name);
-      });
+    $.each(field, function (entryCount, name) {
+      scope.results.push(name);
     });
+  });
 
-    // Calculating the current page and the view
-    this.totalPages = Math.ceil(this.resultCount / 20);
-    this.populateResults(0);
+  // Calculating the current page and the view
+  this.populateResults();
 
-  } catch (e) {
-    console.error(e.message, e.stack);
-  }
 }
 
 Atmos.prototype.query = function(prefix, parameters, callback, pipeline) {
@@ -296,9 +276,11 @@ Atmos.prototype.onQueryResultsTimeout = function(interest) {
   }
 }
 
-Atmos.prototype.populateResults = function(startIndex) {
+Atmos.prototype.populateResults = function() {
+
+  //TODO Check only for page changes and result length
+
   this.resultTable.empty();
-  //this.resultTable.append('<tr><th colspan="2">Results</th></tr>');
 
   for (var i = startIndex; i < startIndex + 20 && i < this.results.length; ++i) {
     this.resultTable.append('<tr><td>' + this.results[i]
