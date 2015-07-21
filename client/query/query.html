@@ -24,6 +24,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.5/js/bootstrap.min.js"></script>
 <script src="../ndn-js/build/ndn.js"></script>
+<script src="autocomplete.js"></script>
 <script src="query.js"></script>
 
 </head>
@@ -55,21 +56,17 @@
         <div class="panel panel-default">
           <div class="panel-body">
             <div id="filters"></div>
-            <div class="autocomplete">
-              <div class="ui-widget">
-                <form class="form-inline" id="searchBar">
-                  <div class="form-group">
-                    <label for="searchBar">Search:&nbsp;</label>
-                    <div class="input-group">
-                      <input id="search" placeholder="/cmip" type="text" class="form-control">
-                      <div class="input-group-btn">
-                        <button id="searchButton" type="submit" class="btn btn-primary">Search</button>
-                      </div>
-                    </div>
+            <form class="form-inline" id="searchBar">
+              <div class="form-group">
+                <label for="searchBar">Search:&nbsp;</label>
+                <div class="input-group">
+                  <input id="search" placeholder="/cmip" type="text" class="form-control" data-toggle="tooltip" data-placement="top" title="Press Tab for autocomplete">
+                  <div class="input-group-btn">
+                    <button id="searchButton" type="submit" class="btn btn-primary">Search</button>
                   </div>
-                </form>
+                </div>
               </div>
-            </div>
+            </form>
           </div>
         </div>
 

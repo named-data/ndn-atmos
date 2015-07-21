@@ -26,6 +26,11 @@ html, body {
   border-left: gray 3px solid;
 }
 
+.autoComplete .list-group {
+  margin-bottom: 0;
+  border: none;
+}
+
 #filters {
   margin-bottom: 10px;
   visibility: visible;
