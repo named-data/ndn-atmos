@@ -47,6 +47,10 @@ html, body {
   cursor: pointer;
 }
 
+#filters .label::after {
+  content: " \2716";
+}
+
 #filters .label:hover {
   /* font-size: 0; */
   background-color: red;

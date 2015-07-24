@@ -25,13 +25,9 @@ var Atmos = (function(){
 
     //Internal variables.
     this.results = [];
-      this.resultCount = 0;
+    this.resultCount = 0;
     this.page = 1;
-    this.totalPages = 1;
-    this.selectedSearch = {};
-    this.dropdown = [];
-    this.state = {};
-    this.currentViewIndex = 0;
+    this.itemsPerPage = 25;
 
     this.catalog = catalog;
 
@@ -39,6 +35,8 @@ var Atmos = (function(){
     this.categories = $('#side-menu');
     this.resultTable = $('#resultTable');
     this.filters = $('#filters');
+    this.searchInput = $('#search');
+    this.searchBar = $('#searchBar');
 
     var scope = this;
 
@@ -58,21 +56,38 @@ var Atmos = (function(){
         .addClass('btn-default')
         .addClass('disabled')
         .prop('disabled', true);
-
     });
 
+    //Filter setup
     $.getJSON("search_catagories.json").done(function (data) {
       $.each(data, function (pageSection, contents) {
         if (pageSection == "SearchCatagories") {
-          $.each(contents, function (search, searchOptions) {
-            var e = $('<li><a href="#">' + search.replace(/\_/g, " ") + '</a><ul class="subnav nav nav-pills nav-stacked"></ul></li>');
+          $.each(contents, function (category, searchOptions) {
+            //Create the category
+            var e = $('<li><a href="#">' + category.replace(/\_/g, " ") + '</a><ul class="subnav nav nav-pills nav-stacked"></ul></li>');
 
             var sub = e.find('ul.subnav');
             $.each(searchOptions, function(index, name){
+              //Create the filter list inside the category
               var item = $('<li><a href="#">' + name + '</a></li>');
               sub.append(item);
-              item.click(function(){
-                scope.addFilter(name, search);
+              item.click(function(){ //Click on the side menu filters
+                if (item.hasClass('active')){ //Does the filter already exist?
+                  item.removeClass('active');
+                  scope.filters.find(':contains(' + category + ':' + name + ')').remove();
+                } else { //Add a filter
+                  item.addClass('active');
+                  var filter = $('<span class="label label-default"></span>');
+                  filter.text(category + ':' + name);
+
+                  scope.filters.append(filter);
+
+                  filter.click(function(){ //Click on a filter
+                    filter.remove();
+                    item.removeClass('active');
+                  });
+                }
+                
               });
             });
 
@@ -80,21 +95,72 @@ var Atmos = (function(){
             e.find('> a').click(function(){
               scope.categories.find('.subnav').slideUp();
               var t = $(this).siblings('.subnav');
-              if ( !t.is(':visible')){
-                t.slideDown().triggerHandler('focus'); //Cancel other animations and slide down.
+              if ( !t.is(':visible') ){ //If the sub menu is not visible
+                t.slideDown(function(){
+                  t.triggerHandler('focus');
+                }); //Make it visible and look at it.
               }
             });
 
             scope.categories.append(e);
+
           });
         }
       });
     });
 
-    $('#searchBar').submit(function(e){
+    this.searchBar.submit(function(e){
       e.preventDefault();
-      console.log("Search started!", $('#search'));
-    })
+      scope.search();
+    });
+
+    this.searchInput.autoComplete(function(field, callback){
+      scope.autoComplete(field, callback);
+    });
+
+  }
+
+  Atmos.prototype.search = function(){
+    var filters = this.getFilters();
+
+    if (this.searchInput.val().length === 0 && !filters.hasOwnProperty()){
+      if (!this.searchBar.hasClass('has-error')){
+        this.searchBar.addClass('has-error').append('<span class="help-block">A filter or search value is required!</span>');
+      }
+      return;
+    } else {
+      this.searchBar.removeClass('has-error').find('.help-block').fadeOut(function(){$(this).remove()});
+    }
+
+    console.log("Search started!", this.searchInput.val(), filters);
+
+    console.log("Initiating query"); 
+
+    this.query(this.catalog, filters, 
+    function(interest, data){ //Response function
+      console.log("Query Response:", interest, data);
+
+      
+
+    }, function(interest){ //Timeout function
+      console.error("Request failed! Timeout");
+    });
+
+  }
+
+  Atmos.prototype.autoComplete = function(field, callback){
+    console.log("Autocomplete triggered");
+
+    var filters = this.getFilters();
+
+    filters["?"] = this.searchInput.val();
+
+    this.query(this.catalog, filters,
+    function(interest, data){
+      console.log(interest, data);
+    }, function(interest){
+      console.error("Request failed! Timeout");
+    });
 
   }
 
@@ -132,10 +198,7 @@ var Atmos = (function(){
 
   }
 
-  Atmos.prototype.query = function(prefix, parameters, callback, pipeline) {
-    this.results = [];
-    this.dropdown = [];
-    this.resultTable.empty();
+  Atmos.prototype.query = function(prefix, parameters, callback, timeout) {
 
     var queryPrefix = new Name(prefix);
     queryPrefix.append("query");
@@ -143,40 +206,11 @@ var Atmos = (function(){
     var jsonString = JSON.stringify(parameters);
     queryPrefix.append(jsonString);
 
-    this.state = {
-      prefix: new Name(prefix),
-      userOnData: callback,
-      outstanding: {},
-      nextSegment: 0,
-      parameters: jsonString
-    };
-
-    /*if (state.hasOwnProperty("version")) {
-      console.log("state already has version");
-      }*/
-
     var queryInterest = new Interest(queryPrefix);
-    queryInterest.setInterestLifetimeMilliseconds(10000);
+    queryInterest.setInterestLifetimeMilliseconds(4000);
 
-    var scope = this;
+    this.face.expressInterest(queryInterest, callback, timeout);
 
-    this.face.expressInterest(queryInterest,
-        function(interest, data){
-          scope.onQueryData(interest, data);
-        }, function(interest){
-          scope.onQueryTimeout(interest);
-        }
-        );
-
-    this.state["outstanding"][queryInterest.getName().toUri()] = 0;
-  }
-
-  /**
-   * @deprecated
-   * Use applyFilters/addFilters as appropriate.
-   */
-  Atmos.prototype.submitCatalogSearch = function(field) {
-    console.warn("Use of deprecated function submitCatalogSearch! (Use applyFilters/addFilters as appropriate)");
   }
 
   Atmos.prototype.expressNextInterest = function() {
@@ -316,7 +350,7 @@ var Atmos = (function(){
           || (i <= this.page && i + 5 >= this.page)    // in our current page range
           || (i >= this.page && i - 5 <= this.page)) { // in our current page range
         if (i != this.page) {
-          currentPage.append(' <a href="#" onclick="getPage(' + i + ');">' + i + '</a>')
+          currentPage.append(' <a href="#" onclick="getPage(' + i + ');">' + i + '</a>');
             if (i == 1 && this.page > i + 5) {
               currentPage.append(' ... ');
             }
@@ -361,150 +395,18 @@ var Atmos = (function(){
     return false;
   }
 
-
-  Atmos.prototype.submitAutoComplete = function() {
-    console.log("Submitted autoComplete");
-    /* FIXME TODO
-       if (autocompleteText.value.length > 0) {
-       var selection = autocompleteText.value;
-       $.each(dropdown, function (i, dropdownEntry) {
-       if (dropdownEntry.substr(0, dropdownEntry.length - 1) == selection) {
-       selection = dropdownEntry;
-       }
-       });
-
-       selectedSearch["?"] = selection;
-       query(catalog, selectedSearch, onData, 1);
-       delete selectedSearch["?"];
-       }
-       */
-  }
-
-  Atmos.prototype.populateAutocomplete = function(fields) {
-    console.log(fields);
-    /* FIXME TODO
-       var isAutocompleteFullName = (autocompleteText.value.charAt(autocompleteText.value.length - 1) === "/");
-       var autocompleteFullName = autocompleteText.value;
-       for (var i = 0; i < fields.length; ++i) {
-       var fieldFullName = fields[i];
-       var entry = autocompleteFullName;
-       var skipahead = "";
-
-       if (isAutocompleteFullName) {
-       skipahead = fieldFullName.substr(autocompleteText.value.length, fieldFullName.length);
-       } else {
-       if (fieldFullName.charAt(autocompleteText.value.length) === "/") {
-       entry += "/";
-       skipahead = fieldFullName.substr(autocompleteText.value.length + 1, fieldFullName.length);
-       } else {
-       skipahead = fieldFullName.substr(autocompleteText.value.length, fieldFullName.length);
-       }
-       }
-       if (skipahead.indexOf("/") != -1) {
-       entry += skipahead.substr(0, skipahead.indexOf("/") + 1);
-       } else {
-       entry += skipahead;
-       }
-
-       var added = false;
-       for (var j = 0; j < dropdown.length && !added; ++j) {
-       if (dropdown[j] === entry) {
-       added = true;
-       } else if (dropdown[j] > entry) {
-       dropdown.splice(j, 0, entry);
-       added = true;
-       }
-       }
-       if (!added) {
-       dropdown.push(entry);
-       }
-
-       }
-       $("#autocompleteText").autocomplete({
-       source: dropdown
-       });
-       */
-  }
-
   /**
-   * Adds a filter to the list of filters.
-   * If a filter is already added, it will be removed instead.
-   * 
-   * @param {string} filter
+   * This function returns a map of all the categories active filters.
+   * @return {Object<string, string>}
    */
-  Atmos.prototype.addFilter = function(name, category){
-    var existing = this.filters.find('span:contains(' + name + ')');
-        if (existing.length){
-          //If the category is clicked twice, then we delete it.
-          existing.remove();
-          this.applyFilters();
-
-        } else {
-
-          var filter = $('<span class="label label-default"></span>');
-          filter.text(category + ':' + name);
-
-          this.filters.append(filter);
-
-          this.applyFilters();
-
-          var scope = this;
-          filter.click(function(){
-            $(this).remove();
-            scope.applyFilters();
-          });
-
-        }
-
-  }
-
-  Atmos.prototype.applyFilters = function(){
+  Atmos.prototype.getFilters = function(){
     var filters = this.filters.children().toArray().reduce(function(prev, current){
       var data = $(current).text().split(/:/);
       prev[data[0]] = data[1];
       return prev;
-    }, {});
-    console.log('Collected filters:', filters);
-    var scope = this;
-    this.query(this.catalog, filters, function(data){
-      scope.onData(data);
-    }, 1);
-  }
-
-  /**
-   * @deprecated
-   * Use addFilter instead.
-   */
-  Atmos.prototype.populateCurrentSelections = function() {
-    console.warn("Use of deprecated function populateCurrentSelections! (Use addFilter instead)");
-    /*
-       var currentSelection = $(".currentSelections");
-       currentSelection.empty();
-
-       currentSelection.append("<p>Filtering on:");
-
-       var scope = this;
-
-       $.each(this.selectedSearch, function (searchMenuCatagory, selection) {
-       var e = $('<a href="#">[X] ' + searchMenuCatagory + ":" + selection + '</a>');
-       e.onclick(function(){
-       var searchFilter = $(this).text();
-
-       var search = "";
-       for (var j = 0; j < searchFilter.length; ++j) {
-       search += searchFilter[j] + " ";
-       }
-       console.log("Split values: '" + search + "'");
-
-       delete this.selectedSearch[searchFilter[0]];
-       this.query(catalog, selectedSearch, onData, 1);
-       populateCurrentSelections();
-       });
-       currentSelection.append(e);
-       });
-
-       currentSelection.append("</p>");
-       */
+    }, {}); //Collect a map<category, filter>.
+    //TODO Make the return value map<category, Array<filter>>
+    return filters;
   }
 
   return Atmos;
