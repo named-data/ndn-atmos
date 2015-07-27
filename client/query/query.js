@@ -136,10 +136,38 @@ var Atmos = (function(){
 
     console.log("Initiating query"); 
 
+    var scope = this;
+
     this.query(this.catalog, filters, 
     function(interest, data){ //Response function
       console.log("Query Response:", interest, data);
 
+      var parameters = JSON.stringify(filters);
+
+      var ack = data.getName();
+
+      var name = new Name(scope.catalog).append("query-results").append(parameters)
+      .append(ack.get(ack.getComponentCount() - 3)).append(ack.getComponent(ack.getComponentCount() - 2))
+
+      var first = new Name(name).appendSegment(0);
+
+      console.log("Next request:", first.toUri());
+
+      scope.face.expressInterest(new Interest(first).setInterestLifetimeMilliseconds(10000),
+        function(interest, data){ //Response
+  
+          var content = JSON.parse(data.getContent().toString().replace(/[\n\0]/g,""));
+
+          var results = scope.results[0] = content.results;
+          scope.resultCount = content.resultCount;
+
+          console.log("Got results:", results);
+
+        },
+        function(interest){ //Timeout
+          console.error("Failed to retrieve results: timeout");
+        }
+      );
       
 
     }, function(interest){ //Timeout function
@@ -164,39 +192,39 @@ var Atmos = (function(){
 
   }
 
-  Atmos.prototype.onData = function(data) {
-    console.log("Recieved data", data);
+//   Atmos.prototype.onData = function(data) {
+//     console.log("Recieved data", data);
 
-    var payloadStr = data.content.toString().split("\n")[0];
+//     var payloadStr = data.content.toString().split("\n")[0];
 
-    if (!payloadStr || payloadStr.length === 0){
-      this.populateResults();
-      return; //No results were returned.
-    }
+//     if (!payloadStr || payloadStr.length === 0){
+//       this.populateResults();
+//       return; //No results were returned.
+//     }
 
-    var queryResults = JSON.parse(payloadStr);
+//     var queryResults = JSON.parse(payloadStr);
 
-    var scope = this;
+//     var scope = this;
 
-    $.each(queryResults, function (queryResult, field) {
+//     $.each(queryResults, function (queryResult, field) {
 
-      if (queryResult == "next") {
-        scope.populateAutocomplete(field);
-      }
+//       if (queryResult == "next") {
+//         scope.populateAutocomplete(field);
+//       }
 
-      if (queryResult == "results" && field == null){
-        return; //Sometimes the results are null. (We should skip this.)
-      }
+//       if (queryResult == "results" && field == null){
+//         return; //Sometimes the results are null. (We should skip this.)
+//       }
 
-      $.each(field, function (entryCount, name) {
-        scope.results.push(name);
-      });
-    });
+//       $.each(field, function (entryCount, name) {
+//         scope.results.push(name);
+//       });
+//     });http://stackoverflow.com/questions/26334964/json-parse-unexpected-token-error
 
-    // Calculating the current page and the view
-    this.populateResults();
+//     // Calculating the current page and the view
+//     this.populateResults();
 
-  }
+//   }
 
   Atmos.prototype.query = function(prefix, parameters, callback, timeout) {
 
@@ -213,187 +241,188 @@ var Atmos = (function(){
 
   }
 
-  Atmos.prototype.expressNextInterest = function() {
-    // @todo pipelines
-    var nextName = new Name(this.state["results"]);
-    nextName.appendSegment(this.state["nextSegment"]);
+//   Atmos.prototype.expressNextInterest = function() {
+//     // @todo pipelines
+//     var nextName = new Name(this.state["results"]);
+//     nextName.appendSegment(this.state["nextSegment"]);
 
-    var nextInterest = new Interest(nextName);
-    nextInterest.setInterestLifetimeMilliseconds(10000);
+//     var nextInterest = new Interest(nextName);
+//     nextInterest.setInterestLifetimeMilliseconds(10000);
 
-    var scope = this;
+//     var scope = this;
 
-    this.face.expressInterest(nextInterest,
-        function(interest, data){
-          scope.onQueryResultsData(interest, data);
-        },
-        function(interest){
-          scope.onQueryResultsTimeout(interest);
-        });
+//     this.face.expressInterest(nextInterest,
+//         function(interest, data){
+//           scope.onQueryResultsData(interest, data);
+//         },
+//         function(interest){
+//           scope.onQueryResultsTimeout(interest);
+//         });
 
-    this.state["nextSegment"] ++;
-    this.state["outstanding"][nextName.toUri()] = 0;
-  }
+//     this.state["nextSegment"] ++;
+//     this.state["outstanding"][nextName.toUri()] = 0;
+//   }
 
-  Atmos.prototype.onQueryData = function(interest, data) {
-    var name = data.getName();
+//   Atmos.prototype.onQueryData = function(interest, data) {
+//     var name = data.getName();
 
-    delete this.state["outstanding"][interest.getName().toUri()];
+//     delete this.state["outstanding"][interest.getName().toUri()];
 
-    this.state["version"] = name.get(this.state["prefix"].size() + 2).toVersion();
+//     this.state["version"] = name.get(this.state["prefix"].size() + 2).toVersion();
 
-    this.state["results"] = new Name(this.state["prefix"]).append("query-results").append(this.state['parameters'])
-    .appendVersion(this.state["version"]).append(name.getComponent(name.getComponentCount() - 2));
+//     this.state["results"] = new Name(this.state["prefix"]).append("query-results").append(this.state['parameters'])
+//     .appendVersion(this.state["version"]).append(name.getComponent(name.getComponentCount() - 2));
 
-    console.log("Requested URI", this.state.results.toUri());
+//     console.log("Requested URI", this.state.results.toUri());
 
-    this.expressNextInterest();
-  }
+//     this.expressNextInterest();
+//   }
 
-  Atmos.prototype.onQueryResultsData = function(interest, data) {
-    var name = data.getName();
-    delete this.state["outstanding"][interest.getName().toUri()];
-    if (!name.get(-1).equals(data.getMetaInfo().getFinalBlockId())) {
-      this.expressNextInterest();
-    } //else {
-    //alert("found final block");
-    //}
+//   Atmos.prototype.onQueryResultsData = function(interest, data) {
+//     var name = data.getName();
+//     delete this.state["outstanding"][interest.getName().toUri()];
+//     if (!name.get(-1).equals(data.getMetaInfo().getFinalBlockId())) {
+//       this.expressNextInterest();
+//     } //else {
+//     //alert("found final block");
+//     //}
 
-    this.state["userOnData"](data);
-  }
+//     this.state["userOnData"](data);
+//   }
 
-  Atmos.prototype.onQueryTimeout = function(interest) {
-    var uri = interest.getName().toUri();
-    if (this.state["outstanding"][uri] < 1) {
-      this.state["outstanding"][uri] ++;
-      var scope = this;
-      this.face.expressInterest(interest,
-          function(interest, data){
-            scope.onQueryData(interest, data);
-          },
-          function(interest){
-            scope.onQueryTimeout(interest);
-          });
-    } else {
-      delete this.state["outstanding"][uri];
+//   Atmos.prototype.onQueryTimeout = function(interest) {
+//     var uri = interest.getName().toUri();
+//     if (this.state["outstanding"][uri] < 1) {
+//       this.state["outstanding"][uri] ++;
+//       var scope = this;
+//       this.face.expressInterest(interest,
+//           function(interest, data){
+//             scope.onQueryData(interest, data);
+//           },
+//           function(interest){
+//             scope.onQueryTimeout(interest);
+//           });
+//     } else {
+//       delete this.state["outstanding"][uri];
 
-      // We modify the autocomplete box here because we need to know
-      // we have all of the entries first. Fairly hacky.
-      /* TODO FIXME
-         var autocompleteFullName = this.autocompleteText.value;
-         for (var i = 0; i < dropdown.length; ++i) {
-         if (this.dropdown[i].substr(0, dropdown[i].length - 1).toUpperCase === this.autocompleteText.value.toUpperCase || dropdown.length == 1) {
-         autocompleteText.value = dropdown[i];
-         }
-         }
-         */
-    }
-  }
+//       // We modify the autocomplete box here because we need to know
+//       // we have all of the entries first. Fairly hacky.
+//       /* TODO FIXME
+//          var autocompleteFullName = this.autocompleteText.value;
+//          for (var i = 0; i < dropdown.length; ++i) {
+//          if (this.dropdown[i].substr(0, dropdown[i].length - 1).toUpperCase === this.autocompleteText.value.toUpperCase || dropdown.length == 1) {
+//          autocompleteText.value = dropdown[i];
+//          }
+//          }
+//          */
+//     }
+//   }
 
-  Atmos.prototype.onQueryResultsTimeout = function(interest) {
-    var uri = interest.getName().toUri();
-    if (this.state["outstanding"][uri] < 1) {
-      this.state["outstanding"][uri] ++;
-      var scope = this;
-      this.face.expressInterest(interest,
-          function(){
-            scope.onQueryResultsData.apply(scope, arguments);
-          },
-          function(){
-            scope.onQueryResultsTimeout.apply(scope, arguments);
-          });
-    } else {
-      delete this.state["outstanding"][uri];
-      // We modify the autocomplete box here because we need to know
-      // we have all of the entries first. Fairly hacky.
-      /* TODO FIXME
-         var autocompleteFullName = autocompleteText.value;
-         for (var i = 0; i < dropdown.length; ++i) {
-         if (dropdown[i].substr(0, dropdown[i].length - 1).toUpperCase === autocompleteText.value.toUpperCase || dropdown.length == 1) {
-         autocompleteText.value = dropdown[i];
-         }
-         }
-         */
-    }
-  }
+//   Atmos.prototype.onQueryResultsTimeout = function(interest) {
+//     var uri = interest.getName().toUri();
+//     if (this.state["outstanding"][uri] < 1) {
+//       this.state["outstanding"][uri] ++;
+//       var scope = this;
+//       this.face.expressInterest(interest,
+//           function(){
+//             scope.onQueryResultsData.apply(scope, arguments);
+//           },
+//           function(){
+//             scope.onQueryResultsTimeout.apply(scope, arguments);
+//           });
+//     } else {
+//       delete this.state["outstanding"][uri];
+//       // We modify the autocomplete box here because we need to know
+//       // we have all of the entries first. Fairly hacky.
+//       /* TODO FIXME
+//          var autocompleteFullName = autocompleteText.value;
+//          for (var i = 0; i < dropdown.length; ++i) {
+//          if (dropdown[i].substr(0, dropdown[i].length - 1).toUpperCase === autocompleteText.value.toUpperCase || dropdown.length == 1) {
+//          autocompleteText.value = dropdown[i];
+//          }
+//          }
+//          */
+//     }
+//   }
+//   **/
 
-  Atmos.prototype.populateResults = function() {
+//   Atmos.prototype.populateResults = function() {
 
-    //TODO Check only for page changes and result length
+//     //TODO Check only for page changes and result length
 
-    this.resultTable.empty();
+//     this.resultTable.empty();
 
-    for (var i = startIndex; i < startIndex + 20 && i < this.results.length; ++i) {
-      this.resultTable.append('<tr><td>' + this.results[i]
-          + '</td><td><button class="interest-button btn btn-primary btn-xs">Retrieve</button></td></tr>');
-    }
+//     for (var i = startIndex; i < startIndex + 20 && i < this.results.length; ++i) {
+//       this.resultTable.append('<tr><td>' + this.results[i]
+//           + '</td><td><button class="interest-button btn btn-primary btn-xs">Retrieve</button></td></tr>');
+//     }
 
-    if (this.results.length <= 20) {
-      this.page = 1;
-    } else {
-      this.page = startIndex / 20 + 1;
-    }
+//     if (this.results.length <= 20) {
+//       this.page = 1;
+//     } else {
+//       this.page = startIndex / 20 + 1;
+//     }
 
-    this.totalPages = Math.ceil(this.results.length / 20);
+//     this.totalPages = Math.ceil(this.results.length / 20);
 
-    //TODO Fix the page to fit the theme.
-    var currentPage = $(".page");
-    currentPage.empty();
-    if (this.page != 1) {
-      currentPage.append('<a href="#" onclick="getPage(this.id);" id="<"><</a>');
-    }
-    // This section of code creates the paging for the results.
-    // To prevent it from having a 1000+ pages, it will only show the 5 pages before/after
-    // the current page and the total pages (expect users not to really jump around a lot).
-    for (var i = 1; i <= this.totalPages; ++i) {
-      if (i == 1 || i == this.totalPages      // Min or max
-          || (i <= this.page && i + 5 >= this.page)    // in our current page range
-          || (i >= this.page && i - 5 <= this.page)) { // in our current page range
-        if (i != this.page) {
-          currentPage.append(' <a href="#" onclick="getPage(' + i + ');">' + i + '</a>');
-            if (i == 1 && this.page > i + 5) {
-              currentPage.append(' ... ');
-            }
-        } else {
-          currentPage.append(' ' + i);
-        }
-      } else { // Need to skip ahead
-        if (i == this.page + 6) {
-          currentPage.append(' ... ');
+//     //TODO Fix the page to fit the theme.
+//     var currentPage = $(".page");
+//     currentPage.empty();
+//     if (this.page != 1) {
+//       currentPage.append('<a href="#" onclick="getPage(this.id);" id="<"><</a>');
+//     }
+//     // This section of code creates the paging for the results.
+//     // To prevent it from having a 1000+ pages, it will only show the 5 pages before/after
+//     // the current page and the total pages (expect users not to really jump around a lot).
+//     for (var i = 1; i <= this.totalPages; ++i) {
+//       if (i == 1 || i == this.totalPages      // Min or max
+//           || (i <= this.page && i + 5 >= this.page)    // in our current page range
+//           || (i >= this.page && i - 5 <= this.page)) { // in our current page range
+//         if (i != this.page) {
+//           currentPage.append(' <a href="#" onclick="getPage(' + i + ');">' + i + '</a>');
+//             if (i == 1 && this.page > i + 5) {
+//               currentPage.append(' ... ');
+//             }
+//         } else {
+//           currentPage.append(' ' + i);
+//         }
+//       } else { // Need to skip ahead
+//         if (i == this.page + 6) {
+//           currentPage.append(' ... ');
 
-          currentPage.append(' <a href="#" onclick="getPage(this.id);" id=">">></a>')
-            i = this.totalPages - 1;
-        }
-      }
-    }
-    currentPage.append('  ' + this.results.length + ' results');
-  }
+//           currentPage.append(' <a href="#" onclick="getPage(this.id);" id=">">></a>')
+//             i = this.totalPages - 1;
+//         }
+//       }
+//     }
+//     currentPage.append('  ' + this.results.length + ' results');
+//   }
 
-  Atmos.prototype.getPage = function(clickedPage) {
-    console.log(clickedPage);
+//   Atmos.prototype.getPage = function(clickedPage) {
+//     console.log(clickedPage);
 
-    var nextPage = clickedPage;
-    if (clickedPage === "<") {
-      nextPage = this.page - 5;
-    } else if (clickedPage === ">") {
-      console.log("> enabled");
+//     var nextPage = clickedPage;
+//     if (clickedPage === "<") {
+//       nextPage = this.page - 5;
+//     } else if (clickedPage === ">") {
+//       console.log("> enabled");
 
-      nextPage = this.page + 5;
-    }
+//       nextPage = this.page + 5;
+//     }
 
-    nextPage--; // Need to adjust for starting at 0
+//     nextPage--; // Need to adjust for starting at 0
 
-    if (nextPage < 0 ) {
-      nextPage = 0;
-      console.log("0 enabled");
-    } else if (nextPage > this.totalPages - 1) {
-      nextPage = this.totalPages - 1;
-      console.log("total enabled");
-    }
+//     if (nextPage < 0 ) {
+//       nextPage = 0;
+//       console.log("0 enabled");
+//     } else if (nextPage > this.totalPages - 1) {
+//       nextPage = this.totalPages - 1;
+//       console.log("total enabled");
+//     }
 
-    this.populateResults(nextPage * 20);
-    return false;
-  }
+//     this.populateResults(nextPage * 20);
+//     return false;
+//   }
 
   /**
    * This function returns a map of all the categories active filters.
