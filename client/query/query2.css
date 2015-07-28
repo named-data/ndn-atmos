@@ -108,3 +108,19 @@ html, body {
 #filters:not(:empty)::before {
   content: "Filters: ";
 }
+
+#search {
+  width: 500px;
+}
+
+.autoComplete {
+  max-height: 0;
+  overflow-y: auto;
+  position: absolute;
+  left: 0;
+  transition: max-height 1s;
+}
+
+*:focus ~ .autoComplete { /* If the parent detects focus on any subelement or itself */
+  max-height: 500px;
+}

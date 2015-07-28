@@ -23,22 +23,18 @@
 
       var element = $('<div></div>');
       element.addClass('list-group')
+      .addClass('autoComplete')
       .css({
-        'border-top-left-radius': 0,
-        'border-top-right-radius': 0,
-        'width': this.width(),
-        'position': 'absolute',
-        'top': this.parent().height(),
-        'display': 'none',
-        'max-height': '500px',
-        'overflow-y': 'auto'
+        'top': this.parent().height()
       });
 
-      this.focus(function(){
-        element.slideDown();
-      }).blur(function(){
-        element.slideUp();
-      }).before(element);
+//      this.focus(function(){
+//        element.slideDown();
+//      }).blur(function(){
+//        element.slideUp();
+//      }).before(element);
+
+      this.after(element);
 
       var getSuggestions = function(current, callback){
         callback(suggestions.reduce(function(prev, suggestion){
@@ -76,7 +72,8 @@
             element.find(':first-child').addClass('active');
           } else {
             if (!active.is(':first-child')){
-              active.removeClass('active').prev().addClass('active');
+              var top = active.removeClass('active').prev().addClass('active').offset().top;
+              active.parent().stop().animate({scrollTop: top}, 500);
             }
           }
           e.preventDefault();
@@ -88,7 +85,8 @@
             element.find(':first-child').addClass('active');
           } else {
             if (!active.is(':last-child')){
-              active.removeClass('active').next().addClass('active');
+              var top = active.removeClass('active').next().addClass('active').offset().top;
+              active.parent().stop().animate({scrollTop: top}, 500);
             }
           }
           e.preventDefault();
@@ -104,7 +102,7 @@
 
           case 9: //Tab
           getSuggestions(input.val(), setAutoComplete);
-          e.preventDefault(); //Don't print tab
+          e.preventDefault(); //Don't print tab or select a different element.
           break;
         }
 

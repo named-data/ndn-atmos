@@ -201,6 +201,14 @@ var Atmos = (function(){
       scope.face.expressInterest(new Interest(name).setInterestLifetimeMilliseconds(5000),
       function(interest, data){
         console.log("Autocomplete query return: ", data.getContent().toString());
+        
+        if (data.getContent().length !== 0){
+          var options = JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")).next.map(function(element){
+            return field + element;
+          });
+          callback(options);
+        }
+
       }, function(interest){
         console.warn("Interest timed out!", interest);
       });
