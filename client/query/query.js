@@ -161,13 +161,12 @@ var Atmos = (function(){
 
       var ack = data.getName();
 
-      scope.name = new Name(scope.catalog).append("query-results").append(parameters)
-      .append(ack.get(ack.getComponentCount() - 3)).append(ack.getComponent(ack.getComponentCount() - 2));
+      scope.name = new Name(scope.catalog).append("query-results").append(parameters).append(ack.get(-3)).append(ack.get(-2));
 
       scope.getResults(0);
 
     }, function(interest){ //Timeout function
-      console.error("Request failed! Timeout");
+      console.warn("Request failed! Timeout");
     });
 
   }
@@ -188,11 +187,26 @@ var Atmos = (function(){
 
     filters["?"] = this.searchInput.val();
 
+    var scope = this;
+
     this.query(this.catalog, filters,
     function(interest, data){
-      console.log(interest, data);
+
+      var ack = data.getName();
+
+      var name = new Name(scope.catalog).append('query-results').append(JSON.stringify(filters)).append(ack.get(-3)).append(ack.get(-2));
+
+      console.log(name.toUri(), filters);
+
+      scope.face.expressInterest(new Interest(name).setInterestLifetimeMilliseconds(5000),
+      function(interest, data){
+        console.log("Autocomplete query return: ", data.getContent().toString());
+      }, function(interest){
+        console.warn("Interest timed out!", interest);
+      });
+
     }, function(interest){
-      console.error("Request failed! Timeout");
+      console.error("Request failed! Timeout", interest);
     });
 
   }
@@ -204,7 +218,7 @@ var Atmos = (function(){
 
     this.resultTable.empty().append(results);
 
-    this.pagers.find('.totalResults').text(this.results[resultIndex].length + " of " + this.resultCount + " results");
+    this.pagers.find('.totalResults').text('(Page' + (resultIndex + 1) + ') Showing ' + this.results[resultIndex].length + ' of ' + this.resultCount + ' results');
 
     if (resultIndex === this.lastPage) {
       this.pagers.find('.next').addClass('disabled');
@@ -235,7 +249,7 @@ var Atmos = (function(){
 
     var first = new Name(this.name).appendSegment(index);
 
-    console.log("Requesting data index: (", index, ") at ", first);
+    console.log("Requesting data index: (", index, ") at ", first.toUri());
 
     var scope = this;
 
