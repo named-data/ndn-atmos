@@ -44,7 +44,10 @@
 
       <div class="col-sm-3 col-md-2 sidebar">
         <div class="panel panel-default">
-          <div class="panel-heading">Filter Categories</div>
+          <div class="panel-heading flex flex-row">
+            <span class="vertical-fix width-fix">Filter Categories</span>
+            <button id="searchButton" class="btn btn-primary right-fix">Search</button>
+          </div>
           <div class="panel-body">
             <ul id="side-menu" class="nav nav-pills nav-stacked"></ul>
           </div>
@@ -58,11 +61,12 @@
             <div id="filters"></div>
             <form class="form-inline" id="searchBar">
               <div class="form-group">
-                <label for="searchBar">Search:&nbsp;</label>
                 <div class="input-group">
-                  <input id="search" placeholder="/cmip" type="text" class="form-control" data-toggle="tooltip" data-placement="top" title="Press Tab for autocomplete">
+                  <input id="search" placeholder="Enter a path" value="/"
+                   type="text" class="form-control" data-toggle="tooltip" data-placement="top"
+                   title="This bar is for doing a tab completion like path completion. Press tab, enter, or click AutoComplete to begin your search.">
                   <div class="input-group-btn">
-                    <button id="searchButton" type="submit" class="btn btn-primary">Search</button>
+                    <button id="autoCompleteButton" type="submit" class="btn btn-default">AutoComplete</button>
                   </div>
                 </div>
               </div>
@@ -70,14 +74,26 @@
           </div>
         </div>
 
-        <div class="panel panel-default">
+        <div class="panel panel-primary">
           <div class="panel-heading">Results</div>
           <div class="panel-body">
             <nav>
-              <ul id="resultPages" class="pagination"></ul>
-              <span id="resultTotalPages"></span>
+              <ul class="pager">
+                <li class="previous disabled"><a href="#">&larr; Previous</a></li>
+                <li><span class="totalResults">0 Results</span></li>
+                <li class="next disabled"><a href="#">Next &rarr;</a></li>
+              </ul>
             </nav>
             <table id="resultTable" class="table"></table>
+          </div>
+          <div class="panel-footer">
+            <nav>
+              <ul class="pager">
+                <li class="previous disabled"><a href="#">&larr; Previous</a></li>
+                <li><span class="totalResults">0 Results</span></li>
+                <li class="next disabled"><a href="#">Next &rarr;</a></li>
+              </ul>
+            </nav>
           </div>
         </div>
 

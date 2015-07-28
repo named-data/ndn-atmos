@@ -5,22 +5,9 @@
  * 
  * Then simply call $('.someClass').autoComplete(getSuggestions) on it to enable auto completion.
  * 
- * Also add
- * ```
- * .autoComplete {
- *  position: absolute;
- *  top: 38px;
- *  width: 229px;
- * }
- * 
- * .autoComplete .list-group {
- *  margin-bottom: 0;
- *  border: none;
- * }
- * ```
- * to an included css file.
- * 
  * getSuggestions returns by calling its callback parameter with an array of valid strings.
+ * 
+ * Autocomplete can be manually triggered by triggering the autoComplete event.
  * 
  */
 (function(){
@@ -121,6 +108,10 @@
           break;
         }
 
+      });
+
+      this.on('autoComplete', function(){
+        getSuggestions(input.val(), setAutoComplete);
       });
 
       return this;
