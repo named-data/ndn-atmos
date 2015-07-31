@@ -46,7 +46,6 @@
         <div class="panel panel-default">
           <div class="panel-heading flex flex-row">
             <span class="vertical-fix width-fix">Filter Categories</span>
-            <button id="searchButton" class="btn btn-primary right-fix">Search</button>
           </div>
           <div class="panel-body">
             <ul id="side-menu" class="nav nav-pills nav-stacked"></ul>
@@ -56,9 +55,19 @@
 
       <div class="col-sm-9 col-md-10">
 
+        <div id="alerts"></div>
+
         <div class="panel panel-default">
+          <div class="panel-heading">Filter Based Search</div>
           <div class="panel-body">
             <div id="filters"></div>
+            <button id="searchButton" class="btn btn-primary right-fix">Search</button>
+          </div>
+        </div>
+
+        <div class="panel panel-default">
+          <div class="panel-heading">Path Based Search</div>
+          <div class="panel-body">
             <form class="form-inline" id="searchBar">
               <div class="form-group">
                 <div class="input-group">
@@ -66,7 +75,7 @@
                    type="text" class="form-control" data-toggle="tooltip" data-placement="top"
                    title="This bar is for doing a tab completion like path completion. Press tab, enter, or click AutoComplete to begin your search.">
                   <div class="input-group-btn">
-                    <button id="autoCompleteButton" type="submit" class="btn btn-default">AutoComplete</button>
+                    <button id="autoCompleteSearch" type="submit" class="btn btn-default">Search</button>
                   </div>
                 </div>
               </div>

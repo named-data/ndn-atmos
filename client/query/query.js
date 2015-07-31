@@ -14,12 +14,12 @@ var Atmos = (function(){
   /**
    * Atmos
    * @version 2.0
-   * 
+   *
    * Configures an Atmos object. This manages the atmos interface.
-   * 
-   * @constructor 
+   *
+   * @constructor
    * @param {string} catalog - NDN path
-   * @param {Object} config - Object of configuration options for a Face. 
+   * @param {Object} config - Object of configuration options for a Face.
    */
   function Atmos(catalog, config){
 
@@ -41,6 +41,7 @@ var Atmos = (function(){
     this.searchBar = $('#searchBar');
     this.searchButton = $('#searchButton');
     this.pagers = $('.pager');
+    this.alerts = $('#alerts');
 
     var scope = this;
 
@@ -91,7 +92,7 @@ var Atmos = (function(){
                     item.removeClass('active');
                   });
                 }
-                
+
               });
             });
 
@@ -119,7 +120,7 @@ var Atmos = (function(){
 
     this.searchBar.submit(function(e){
       e.preventDefault();
-      scope.searchInput.trigger('autoComplete');
+      console.warn("This feature is incomplete.");
     });
 
     this.searchButton.click(function(){
@@ -146,14 +147,14 @@ var Atmos = (function(){
 
     console.log("Search started!", this.searchInput.val(), filters);
 
-    console.log("Initiating query"); 
+    console.log("Initiating query");
 
     this.results = []; //Drop any old results.
     this.resultTable.empty();
 
     var scope = this;
 
-    this.query(this.catalog, filters, 
+    this.query(this.catalog, filters,
     function(interest, data){ //Response function
       console.log("Query Response:", interest, data);
 
@@ -167,6 +168,7 @@ var Atmos = (function(){
 
     }, function(interest){ //Timeout function
       console.warn("Request failed! Timeout");
+      scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
     });
 
   }
@@ -183,13 +185,9 @@ var Atmos = (function(){
       this.searchBar.removeClass('has-error').find('.help-block').fadeOut(function(){$(this).remove()});
     }
 
-    var filters = this.getFilters();
-
-    filters["?"] = this.searchInput.val();
-
     var scope = this;
 
-    this.query(this.catalog, filters,
+    this.query(this.catalog, {"?": field},
     function(interest, data){
 
       var ack = data.getName();
@@ -201,7 +199,7 @@ var Atmos = (function(){
       scope.face.expressInterest(new Interest(name).setInterestLifetimeMilliseconds(5000),
       function(interest, data){
         console.log("Autocomplete query return: ", data.getContent().toString());
-        
+
         if (data.getContent().length !== 0){
           var options = JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")).next.map(function(element){
             return field + element;
@@ -211,10 +209,12 @@ var Atmos = (function(){
 
       }, function(interest){
         console.warn("Interest timed out!", interest);
+        scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
       });
 
     }, function(interest){
       console.error("Request failed! Timeout", interest);
+      scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
     });
 
   }
@@ -295,7 +295,8 @@ var Atmos = (function(){
 
       },
       function(interest){ //Timeout
-        console.error("Failed to retrieve results: timeout");
+        console.error("Failed to retrieve results: timeout", interest);
+        scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
       }
     );
 
@@ -329,6 +330,23 @@ var Atmos = (function(){
     //TODO Make the return value map<category, Array<filter>>
     return filters;
   }
+
+  /**
+   * Creates a closable alert for the user.
+   *
+   * @param {string} message
+   * @param {string} type - Override the alert type.
+   */
+  Atmos.prototype.createAlert = function(message, type) {
+
+    var alert = $('<div class="alert"><div>');
+    alert.addClass(type?type:'alert-info');
+    alert.text(message);
+    alert.append(Atmos.closeButton);
+
+    this.alerts.append(alert);
+  }
+  Atmos.closeButton = '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
 
   return Atmos;
 
