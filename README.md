@@ -31,6 +31,7 @@ Dependencies
 **The ndn-cxx and ChronoSync need some other prerequisites.**
 
  *  For OSX, the prerequisites can be installed using Homebrew:
+
 <pre>
     brew install boost sqlite3 mysql jsoncpp hdf5 openssl cryptopp protobuf
     pip3 install mysql-connector-python --allow-all-external
@@ -39,6 +40,7 @@ Dependencies
 </pre>
 
  * For Ubuntu, use the command below to install the prerequisites:
+
 <pre>
     sudo apt-get install libboost-all-dev libssl-dev libcrypto++-dev \
                         libsqlite3-dev libmysqlclient-dev libjsoncpp-dev \
@@ -46,10 +48,11 @@ Dependencies
                         python3-mysql.connector python3-pip libhdf5-dev \
                         libnetcdf-dev python3-numpy
 
-  sudo pip3 install netCDF4
+    sudo pip3 install netCDF4
 </pre>
 
  * For Fedora, use the command below to install the prerequisites:
+
 <pre>
     sudo yum install boost-devel openssl-devel cryptopp-devel sqlite3x-devel \
                     mysql-devel jsoncpp-devel protobuf-compiler protobuf-devel \
@@ -62,6 +65,7 @@ Installing ndn-cxx
 ---------------------
 
 * Download ndn-cxx source code. Use the link below for ndn-cxx code:
+
 <pre>
   git clone https://github.com/named-data/ndn-cxx.git
   cd ndn-cxx
@@ -69,6 +73,7 @@ Installing ndn-cxx
 </pre>
 
 * In library folder, build from the source code
+
 <pre>
   ./waf configure --disable-static --enable-shared
   ./waf
@@ -79,12 +84,14 @@ Installing ChronoSync
 ---------------------
 
 * Download ChronoSync source code. Use the link below for the ChronoSync code:
+
 <pre>
   git clone https://github.com/named-data/ChronoSync.git
   cd ChronoSync
 </pre>
 
 * Build from the source code
+
 <pre>
   ./waf configure
   ./waf
@@ -98,12 +105,14 @@ Installing ndn-atmos
 Follow the steps below to compile and install ndn-atmos:
 
 * Download the ndn-atmos source code. Use the command below:
+
 <pre>
   git clone https://github.com/named-data/ndn-atmos.git
   cd ndn-atmos
 </pre>
 
 * Build ndn-atmos in the project folder
+
 <pre>
   ./waf configure
   ./waf
@@ -111,6 +120,7 @@ Follow the steps below to compile and install ndn-atmos:
 </pre>
 
 * To test ndn-atmos, please use the steps below:
+
 <pre>
   ./waf configure --with-tests
   ./waf
@@ -119,10 +129,7 @@ Follow the steps below to compile and install ndn-atmos:
 
 * Note that if you are using Fedora or Ubuntu, you may need to create a configuration file for
 ndn-cxx in /etc/ld.so.conf.d to include the path where the libndn-cxx.so is installed. Then
-update using command below:
-<pre>
-  ldconfig
-</pre>
+update using `ldconfig`
 
 *For example, if the libndn-cxx.so is installed in /usr/local/lib64, you need to include
 this path in a "ndn-cxx.conf" file in /etc/ld.so.conf.d directory, and then run "ldconfig".
@@ -134,6 +141,7 @@ Running ndn-atmos
 Install translator library
 ---------------------------
 1. For the translator, ndn_cmmap_translator library is required to be in PYTHONPATH
+
 <pre>
      export PYTHONPATH="full path to /ndn-atmos/lib":$PYTHONPATH
 </pre>
@@ -145,12 +153,14 @@ Initializing Database
 * You also need to create a user and set a password to connect to the database the database.
 * Note that you will need to have actual CMIP5 data to run the tool.
 * Run
+
 <pre>
-$ python3 insert_names.py
+    python3 insert_names.py
 </pre>
+
 * Input full path to the filename and config file to translate
 * A CMIP5 config file is located under
-<pre> /ndn-atmos/lib/ndn_cmmap_translators/etc/cmip5/cmip5.conf </pre>
+</pre> /ndn-atmos/lib/ndn_cmmap_translators/etc/cmip5/cmip5.conf ```
 * This will create a table named cmip5 and insert the names into the table
 
 
@@ -159,6 +169,7 @@ Starting NFD
 NFD is the NDN forwarding daemon.
 
 * Download NFD source code. Use the link below for the NFD code:
+
 <pre>
   git clone https://github.com/named-data/NFD.git
   cd NFD
@@ -167,6 +178,7 @@ NFD is the NDN forwarding daemon.
 </pre>
 
 * Build NFD
+
 <pre>
   ./waf configure
   ./waf
@@ -174,6 +186,7 @@ NFD is the NDN forwarding daemon.
 </pre>
 
 * Run NFD
+
 <pre>
     nfd-start
 </pre>
@@ -181,6 +194,7 @@ NFD is the NDN forwarding daemon.
 * Note that if you are using Fedora or Ubuntu, you may need to create a configuration file for
 ndn-cxx in /etc/ld.so.conf.d to include the path where the libndn-cxx.so is installed. Then
 update using command below:
+
 <pre>
   ldconfig
 </pre>
@@ -195,6 +209,7 @@ Launching atmos-catalog
 * Make sure database is initialized and running
 
 * Create catalog configuration file
+
 <pre>
     cp /usr/local/etc/ndn-atmos/catalog.conf.sample /usr/local/etc/ndn-atmos/catalog.conf
 </pre>
@@ -206,6 +221,7 @@ privileges.
 
 
 * Run ndn-atmos
+
 <pre>
     atmos-catalog
 </pre>
@@ -217,6 +233,7 @@ Starting front end
 * Open the client folder in ndn-atmos
 
 * Checkout the ndn-js in the client folder. Use the link blow:
+
 <pre>
   git clone http://github.com/named-data/ndn-js.git
   cd ndn-js
@@ -224,11 +241,13 @@ Starting front end
 </pre>
 
 * Start python simple server in the client folder (ndn-atmos/client)
+
 <pre>
   python -m SimpleHTTPServer
 </pre>
 
 * Open project query page in a web browser
+
 <pre>
      http://localhost:8000/query/query.html
 </pre>

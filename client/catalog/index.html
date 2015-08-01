@@ -16,22 +16,21 @@
 </script>
 
 <!-- Styles -->
-<link rel="stylesheet"
-  href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.5/united/bootstrap.min.css">
-<link rel="stylesheet" href="query2.css">
+<link rel="stylesheet" href="theme.min.css">
+<link rel="stylesheet" href="style.css">
 
 <!-- Scripts -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.5/js/bootstrap.min.js"></script>
-<script src="../ndn-js/build/ndn.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+<script src="../ndn-js/build/ndn.min.js"></script>
 <script src="autocomplete.js"></script>
-<script src="query.js"></script>
+<script src="catalog.js"></script>
 
 </head>
 
 <body id="body">
   <header>
-    <div class="navbar navbar-default navbar-static-top container-fluid">
+    <div class="navbar navbar-inverse navbar-static-top container-fluid">
       <div class="navbar-header">
         <div class="navbar-brand">NDN Query and Retrieval Tool</div>
       </div>
@@ -75,7 +74,7 @@
                    type="text" class="form-control" data-toggle="tooltip" data-placement="top"
                    title="This bar is for doing a tab completion like path completion. Press tab, enter, or click AutoComplete to begin your search.">
                   <div class="input-group-btn">
-                    <button id="autoCompleteSearch" type="submit" class="btn btn-default">Search</button>
+                    <button id="autoCompleteSearch" type="submit" class="btn btn-primary">Search</button>
                   </div>
                 </div>
               </div>
