@@ -174,7 +174,6 @@ var Atmos = (function(){
   }
 
   Atmos.prototype.autoComplete = function(field, callback){
-    console.log("Autocomplete triggered");
 
     if (this.searchInput.val().length === 0 && !filters.hasOwnProperty()){
       if (!this.searchBar.hasClass('has-error')){
@@ -192,13 +191,10 @@ var Atmos = (function(){
 
       var ack = data.getName();
 
-      var name = new Name(scope.catalog).append('query-results').append(JSON.stringify(filters)).append(ack.get(-3)).append(ack.get(-2));
-
-      console.log(name.toUri(), filters);
+      var name = new Name(scope.catalog).append('query-results').append(JSON.stringify({"?": field})).append(ack.get(-3)).append(ack.get(-2));
 
       scope.face.expressInterest(new Interest(name).setInterestLifetimeMilliseconds(5000),
       function(interest, data){
-        console.log("Autocomplete query return: ", data.getContent().toString());
 
         if (data.getContent().length !== 0){
           var options = JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")).next.map(function(element){

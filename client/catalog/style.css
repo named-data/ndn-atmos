@@ -31,27 +31,6 @@ html, body {
   border: none;
 }
 
-.flex {
-  display: flex;
-}
-
-.flex-row {
-  flex-display: row;
-}
-
-.vertical-fix {
-  line-height: 38px; /* Height of the button */
-  vertical-align: middle;
-}
-
-.width-fix {
-  flex: 1 auto;
-}
-
-.right-fix {
-  flex: auto;
-}
-
 .pager {
   /* margin: 0; */
 }

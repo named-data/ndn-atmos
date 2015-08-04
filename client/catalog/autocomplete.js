@@ -28,12 +28,6 @@
         'top': this.parent().height()
       });
 
-//      this.focus(function(){
-//        element.slideDown();
-//      }).blur(function(){
-//        element.slideUp();
-//      }).before(element);
-
       this.after(element);
 
       var getSuggestions = function(current, callback){
@@ -45,7 +39,10 @@
         }, []));
       }
 
+      var lastList = [];
+
       var setAutoComplete = function(list){
+        lastList = list;
         element.empty();
 
         element.html(list.reduce(function(prev, current){
@@ -59,6 +56,17 @@
       }
 
       var input = this;
+
+      var matcher = /^\/([-_\w]+\/)*/; //Returns only the absolute path.
+
+      var getValue = function(){
+        var res = matcher.exec(input.val());
+        if (res){
+          return res[0]; //Return the absolute match
+        } else {
+          throw new Error("Empty or incorrectly formatted path.");
+        }
+      }
 
       element.bind('click', 'a', function(){
         input.val($(this).text());
@@ -101,15 +109,30 @@
           break;
 
           case 9: //Tab
-          getSuggestions(input.val(), setAutoComplete);
+          getSuggestions(getValue(), setAutoComplete);
           e.preventDefault(); //Don't print tab or select a different element.
           break;
+
+          default:
+          var val = input.val(); //Needs to be unfiltered, for filtering existing results.
+          setAutoComplete(lastList.reduce(function(prev, current){
+            if (current.indexOf(val) === 0){
+              prev.push(current);
+            }
+            return prev;
+          }, []));
+
         }
 
+      })
+      .keyup(function(e){
+        if (e.which === 191){
+          getSuggestions(getValue(), setAutoComplete);
+        }
       });
 
       this.on('autoComplete', function(){
-        getSuggestions(input.val(), setAutoComplete);
+        getSuggestions(getValue(), setAutoComplete);
       });
 
       return this;
