@@ -1,13 +1,34 @@
-var catalog = "/catalog/myUniqueName";
-var config = {
-  host: "atmos-csu.research-lan.colostate.edu",
-  port: 9696
-};
-
-//Run when the document loads.
-$(function () {
-  new Atmos(catalog, config);
-});
+//Run when the document loads AND we have the config loaded.
+(function(){
+  var catalog = null;
+  var config = null;
+  Promise.all([
+    new Promise(function(resolve, reject){
+      $.ajax('config.json').done(function(data){
+        catalog = data.catalogPrefix;
+        config = data.faceConfig;
+        resolve();
+      }).fail(function(){
+        console.error("Failed to get config.");
+        reject()
+      });
+    }),
+    new Promise(function(resolve, reject){
+      var timeout = setTimeout(function(){
+        console.error("Document never loaded? Something bad has happened!");
+        reject();
+      }, 10000);
+      $(function () {
+        clearTimeout(timeout);
+        resolve();
+      });
+    })
+  ]).then(function(){
+    new Atmos(catalog, config);
+  }, function(){
+    console.error("Failed to initialize!");
+  })
+})();
 
 var Atmos = (function(){
   "use strict";
@@ -34,6 +55,7 @@ var Atmos = (function(){
     this.catalog = catalog;
 
     this.face = new Face(config);
+
     this.categories = $('#side-menu');
     this.resultTable = $('#resultTable');
     this.filters = $('#filters');
@@ -58,7 +80,7 @@ var Atmos = (function(){
 
       button.text("Requested!")
         .removeClass('btn-primary')
-        .addClass('btn-default')
+        .addClass('btn-success')
         .addClass('disabled')
         .prop('disabled', true);
     });
@@ -217,8 +239,12 @@ var Atmos = (function(){
 
   Atmos.prototype.showResults = function(resultIndex) {
 
-    var results = $('<tr><td>' + this.results[resultIndex].join('</td><td><button class="interest-button btn btn-primary btn-sm">Retrieve</button></td></tr><tr><td>') +
-    '</td><td><button class="interest-button btn btn-primary btn-sm">Retrieve</button></td></tr>'); //Fastest way to generate the table.
+    var results = $(this.results[resultIndex].reduce(function(prev, current){
+      prev.push('<tr><td><input type="checkbox"></td><td>');
+      prev.push(current);
+      prev.push('</td><td><button class="interest-button btn btn-primary btn-sm">Retrieve</button></td></tr>');
+      return prev;
+    }, []).join(''));
 
     this.resultTable.empty().append(results);
 

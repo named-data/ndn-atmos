@@ -2,6 +2,7 @@ html, body {
   width: 100%;
   height: 100%;
   margin: 0;
+  min-width: 650px;
 }
 
 .sidebar {
@@ -89,7 +90,7 @@ html, body {
 }
 
 #search {
-  width: 500px;
+  min-width: 500px;
 }
 
 .autoComplete {
