@@ -104,3 +104,7 @@ html, body {
 *:focus ~ .autoComplete { /* If the parent detects focus on any subelement or itself */
   max-height: 500px;
 }
+
+.pager li > div {
+  display: inline-block;
+}

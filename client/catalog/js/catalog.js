@@ -46,11 +46,11 @@ var Atmos = (function(){
 
     //Internal variables.
     this.results = [];
-    this.resultCount = 0;
+    this.resultCount = Infinity;
     this.name = null;
     this.page = 0;
-    this.lastPage = -1;
-    //this.itemsPerPage = 25; //TODO
+    this.resultsPerPage = 25;
+    this.retrievedSegments = 0;
 
     this.catalog = catalog;
 
@@ -160,6 +160,12 @@ var Atmos = (function(){
         scope.getResults(scope.page - 1);
       }
     });
+    this.pagers.find('.pageLength').attr('contentEditable', true)
+    .blur(function(){
+      scope.resultsPerPage = Number($(this).text());
+      scope.pagers.find('.pageLength').text(scope.resultsPerPage);
+      scope.getResults(0); //Reset page to 0;
+    });
 
   }
 
@@ -172,6 +178,9 @@ var Atmos = (function(){
     console.log("Initiating query");
 
     this.results = []; //Drop any old results.
+    this.retrievedSegments = 0;
+    this.resultCount = Infinity;
+    this.page = 0;
     this.resultTable.empty();
 
     var scope = this;
@@ -239,23 +248,26 @@ var Atmos = (function(){
 
   Atmos.prototype.showResults = function(resultIndex) {
 
-    var results = $(this.results[resultIndex].reduce(function(prev, current){
+    var results = this.results.slice(this.resultsPerPage * resultIndex, this.resultsPerPage * (resultIndex + 1));
+
+    var resultDOM = $(results.reduce(function(prev, current){
       prev.push('<tr><td><input type="checkbox"></td><td>');
       prev.push(current);
       prev.push('</td><td><button class="interest-button btn btn-primary btn-sm">Retrieve</button></td></tr>');
       return prev;
     }, []).join(''));
 
-    this.resultTable.empty().append(results);
+    this.resultTable.empty().append(resultDOM);
 
-    this.pagers.find('.totalResults').text('(Page' + (resultIndex + 1) + ') Showing ' + this.results[resultIndex].length + ' of ' + this.resultCount + ' results');
+    this.pagers.find('.pageNumber').text(resultIndex + 1);
 
-    if (resultIndex === this.lastPage) {
+    if (this.resultsPerPage * (resultIndex + 1) >= this.resultCount) {
       this.pagers.find('.next').addClass('disabled');
+    } else if (resultIndex === 0){
+      this.pagers.find('.next').removeClass('disabled');
     }
 
     if (resultIndex === 0){
-      this.pagers.find('.next').removeClass('disabled');
       this.pagers.find('.previous').addClass('disabled');
     } else if (resultIndex === 1) {
       this.pagers.find('.previous').removeClass('disabled');
@@ -265,7 +277,7 @@ var Atmos = (function(){
 
   Atmos.prototype.getResults = function(index){
 
-    if (this.results[index]){
+    if ((this.results.length === this.resultCount) || (this.resultsPerPage * (index + 1) < this.results.length)){
       //console.log("We already have index", index);
       this.page = index;
       this.showResults(index);
@@ -277,9 +289,9 @@ var Atmos = (function(){
       throw new Error("Illegal State");
     }
 
-    var first = new Name(this.name).appendSegment(index);
+    var first = new Name(this.name).appendSegment(this.retrievedSegments++);
 
-    console.log("Requesting data index: (", index, ") at ", first.toUri());
+    console.log("Requesting data index: (", this.retrievedSegments - 1, ") at ", first.toUri());
 
     var scope = this;
 
@@ -291,29 +303,24 @@ var Atmos = (function(){
           return;
         }
 
-        if (data.getName().get(-1).equals(data.getMetaInfo().getFinalBlockId())) { //Final page.
-          scope.lastPage = index;
-          //The next buttons will be disabled by showResults.
-        }
-
         var content = JSON.parse(data.getContent().toString().replace(/[\n\0]/g,""));
 
-        var results = scope.results[index] = content.results;
-
-        scope.resultCount = content.resultCount;
-
-        scope.pagers.find('.totalResults').text(scope.resultCount + " Results");
-
-        //console.log("Got results:", results);
-
-        scope.page = index;
-
-        if (!results){
+        if (!content.results){
+          scope.pagers.find('.totalResults').text(0);
+          scope.pagers.find('.pageNumber').text(0);
           console.log("No results were found!");
           return;
         }
 
-        scope.showResults(index);
+        scope.results = scope.results.concat(content.results);
+
+        scope.resultCount = content.resultCount;
+
+        scope.pagers.find('.totalResults').text(scope.resultCount);
+
+        scope.page = index;
+
+        scope.getResults(index); //Keep calling this until we have enough data.
 
       },
       function(interest){ //Timeout
