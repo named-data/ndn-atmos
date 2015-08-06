@@ -3,7 +3,12 @@ html, body {
   height: 100%;
   margin: 0;
   min-width: 650px;
+  background-image: url(../background.jpg);
+  background-size: contain;
+  background-attachment: fixed;
 }
+
+body#body {}
 
 .sidebar {
   height: 100%;
