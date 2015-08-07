@@ -299,6 +299,8 @@ var Atmos = (function(){
       function(interest, data){ //Response
 
         if (data.getContent().length === 0){
+          scope.pagers.find('.totalResults').text(0);
+          scope.pagers.find('.pageNumber').text(0);
           console.log("Empty response.");
           return;
         }

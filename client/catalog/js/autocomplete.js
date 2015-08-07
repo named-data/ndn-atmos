@@ -28,7 +28,8 @@
         'top': this.parent().height()
       });
 
-      this.after(element);
+      this.attr('autocomplete', 'off')
+      .after(element);
 
       var getSuggestions = function(current, callback){
         callback(suggestions.reduce(function(prev, suggestion){
