@@ -70,7 +70,7 @@
       }
 
       element.bind('click', 'a', function(){
-        input.val($(this).text());
+        input.val($(event.target).text());
       });
 
       this.keydown(function(e){
