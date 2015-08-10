@@ -142,7 +142,7 @@ var Atmos = (function(){
 
     this.searchBar.submit(function(e){
       e.preventDefault();
-      console.warn("This feature is incomplete.");
+      scope.createAlert("This feature is currently incomplete.");
     });
 
     this.searchButton.click(function(){
@@ -229,7 +229,7 @@ var Atmos = (function(){
 
         if (data.getContent().length !== 0){
           var options = JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")).next.map(function(element){
-            return field + element;
+            return field + element + "/";
           });
           callback(options);
         }
@@ -382,5 +382,3 @@ var Atmos = (function(){
   return Atmos;
 
 })();
-
-

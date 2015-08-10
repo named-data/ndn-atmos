@@ -1,14 +1,14 @@
 /*
  * The following code is a jquery extention written to add autocomplete functionality to bootstrap input groups.
- * 
+ *
  * Usage:
- * 
+ *
  * Then simply call $('.someClass').autoComplete(getSuggestions) on it to enable auto completion.
- * 
+ *
  * getSuggestions returns by calling its callback parameter with an array of valid strings.
- * 
+ *
  * Autocomplete can be manually triggered by triggering the autoComplete event.
- * 
+ *
  */
 (function(){
   "use strict";
@@ -71,7 +71,19 @@
 
       element.bind('click', 'a', function(){
         input.val($(event.target).text());
+        getSuggestions(getValue(), setAutoComplete);
+        input.focus();
       });
+
+      var updateFromList = function(){
+        var val = input.val(); //Needs to be unfiltered, for filtering existing results.
+        setAutoComplete(lastList.reduce(function(prev, current){
+          if (current.indexOf(val) === 0){
+            prev.push(current);
+          }
+          return prev;
+        }, []));
+      }
 
       this.keydown(function(e){
         switch(e.which){
@@ -106,6 +118,7 @@
           if (active.length === 1){
             $(this).val(active.text());
             e.preventDefault();
+            getSuggestions(getValue(), setAutoComplete);
           }
           break;
 
@@ -115,20 +128,27 @@
           break;
 
           default:
-          var val = input.val(); //Needs to be unfiltered, for filtering existing results.
-          setAutoComplete(lastList.reduce(function(prev, current){
-            if (current.indexOf(val) === 0){
-              prev.push(current);
-            }
-            return prev;
-          }, []));
+          updateFromList();
 
         }
 
       })
       .keyup(function(e){
-        if (e.which === 191){
+        switch (e.which){
+
+          case 191:
           getSuggestions(getValue(), setAutoComplete);
+
+          break;
+          case 38:
+          case 40:
+          case 13:
+          case 9:
+          // Do nothing
+
+          break;
+          default:
+          updateFromList();
         }
       });
 
