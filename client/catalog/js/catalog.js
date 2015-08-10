@@ -224,7 +224,11 @@ var Atmos = (function(){
 
       var name = new Name(scope.catalog).append('query-results').append(JSON.stringify({"?": field})).append(ack.get(-3)).append(ack.get(-2));
 
-      scope.face.expressInterest(new Interest(name).setInterestLifetimeMilliseconds(5000),
+      var interest = new Interest(name);
+      interest.setInterestLifetimeMilliseconds(5000);
+      interest.setMustBeFresh(true);
+
+      scope.face.expressInterest(interest,
       function(interest, data){
 
         if (data.getContent().length !== 0){
@@ -295,7 +299,11 @@ var Atmos = (function(){
 
     var scope = this;
 
-    this.face.expressInterest(new Interest(first).setInterestLifetimeMilliseconds(5000),
+    var interest = new Interest(first)
+    interest.setInterestLifetimeMilliseconds(5000);
+    interest.setMustBeFresh(true);
+
+    this.face.expressInterest(interest,
       function(interest, data){ //Response
 
         if (data.getContent().length === 0){
@@ -343,6 +351,7 @@ var Atmos = (function(){
 
     var queryInterest = new Interest(queryPrefix);
     queryInterest.setInterestLifetimeMilliseconds(4000);
+    queryInterest.setMustBeFresh(true);
 
     this.face.expressInterest(queryInterest, callback, timeout);
 
