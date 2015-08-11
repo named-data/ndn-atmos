@@ -2,6 +2,9 @@
 set -x
 set -e
 
+JDIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
+source "$JDIR"/util.sh
+
 pushd /tmp >/dev/null
 
 INSTALLED_VERSION=$((cd ChronoSync && git rev-parse HEAD) 2>/dev/null || echo NONE)
@@ -27,10 +30,17 @@ export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:\
 /usr/local/lib32/pkgconfig:\
 /usr/local/lib64/pkgconfig
 
-sudo ldconfig || true
+sudo ./waf distclean -j1 --color=yes
+
 ./waf configure -j1 --color=yes
 ./waf -j1 --color=yes
 sudo ./waf install -j1 --color=yes
 
 popd >/dev/null
 popd >/dev/null
+
+if has Linux $NODE_LABELS; then
+    sudo ldconfig
+elif has FreeBSD $NODE_LABELS; then
+    sudo ldconfig -a
+fi

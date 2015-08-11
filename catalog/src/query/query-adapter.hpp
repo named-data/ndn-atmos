@@ -198,6 +198,10 @@ protected:
   json2AutocompletionSql(std::stringstream& sqlQuery,
                          Json::Value& jsonValue);
 
+  bool
+  json2CompleteSearchSql(std::stringstream& sqlQuery,
+                 Json::Value& jsonValue);
+
 protected:
   typedef std::unordered_map<ndn::Name, const ndn::RegisteredPrefixId*> RegisteredPrefixList;
   // Handle to the Catalog's database
@@ -439,9 +443,9 @@ QueryAdapter<DatabaseHandler>::sendNack(const ndn::Name& dataPrefix)
   nack->setFinalBlockId(ndn::Name::Component::fromSegment(segmentNo));
 
   signData(*nack);
-
+#ifndef NDEBUG
   std::cout << "make NACK : " << ndn::Name(dataPrefix).appendSegment(segmentNo) << std::endl;
-
+#endif
   m_mutex.lock();
   m_cache.insert(*nack);
   m_mutex.unlock();
@@ -563,7 +567,86 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
   // 2. generate the sql string (append what appears in the typed string, like activity='xxx'),
   // return true
   bool more = false;
-  sqlQuery << "SELECT " << m_nameFields[count] << " FROM cmip5";
+  sqlQuery << "SELECT DISTINCT " << m_nameFields[count] << " FROM cmip5";
+  for (std::map<std::string, std::string>::iterator it = typedComponents.begin();
+       it != typedComponents.end(); ++it) {
+    if (more)
+      sqlQuery << " AND";
+    else
+      sqlQuery << " WHERE";
+
+    sqlQuery << " " << it->first << "='" << it->second << "'";
+
+    more = true;
+  }
+  sqlQuery << ";";
+  return true;
+}
+
+template <typename DatabaseHandler>
+bool
+QueryAdapter<DatabaseHandler>::json2CompleteSearchSql(std::stringstream& sqlQuery,
+                                              Json::Value& jsonValue)
+{
+#ifndef NDEBUG
+  std::cout << "jsonValue in json2CompleteSearchSql: " << jsonValue.toStyledString() << std::endl;
+#endif
+  if (jsonValue.type() != Json::objectValue) {
+    std::cout << jsonValue.toStyledString() << "is not json object" << std::endl;
+    return false;
+  }
+
+  std::string typedString;
+  // get the string in the jsonValue
+  for (Json::Value::iterator iter = jsonValue.begin(); iter != jsonValue.end(); ++iter)
+  {
+    Json::Value key = iter.key();
+    Json::Value value = (*iter);
+
+    if (key == Json::nullValue || value == Json::nullValue) {
+      std::cout << "null key or value in JsonValue: " << jsonValue.toStyledString() << std::endl;
+      return false;
+    }
+
+    // cannot convert to string
+    if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
+      std::cout << "malformed JsonQuery string : " << jsonValue.toStyledString() << std::endl;
+      return false;
+    }
+
+    if (key.asString().compare("??") == 0) {
+      typedString.assign(value.asString());
+      // since the front end triggers the autocompletion when users typed '/',
+      // there must be a '/' at the end, and the first char must be '/'
+      if (typedString.at(typedString.length() - 1) != '/' || typedString.find("/") != 0)
+        return false;
+      break;
+    }
+  }
+
+  // 1. get the expected column number by parsing the typedString, so we can get the filed name
+  size_t pos = 0;
+  size_t start = 1; // start from the 1st char which is not '/'
+  size_t count = 0; // also the name to query for
+  std::string token;
+  std::string delimiter = "/";
+  std::map<std::string, std::string> typedComponents;
+  while ((pos = typedString.find(delimiter, start)) != std::string::npos) {
+    token = typedString.substr(start, pos - start);
+    if (count >= m_nameFields.size() - 1) {
+      return false;
+    }
+
+    // add column name and value (token) into map
+    typedComponents.insert(std::pair<std::string, std::string>(m_nameFields[count], token));
+    count ++;
+    start = pos + 1;
+  }
+
+  // 2. generate the sql string (append what appears in the typed string, like activity='xxx'),
+  // return true
+  bool more = false;
+  sqlQuery << "SELECT name FROM cmip5";
   for (std::map<std::string, std::string>::iterator it = typedComponents.begin();
        it != typedComponents.end(); ++it) {
     if (more)
@@ -668,6 +751,12 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
       return;
     }
   }
+  else if (parsedFromString.get("??", tmp) != tmp) {
+    if (!json2CompleteSearchSql(sqlQuery, parsedFromString)) {
+      sendNack(segmentPrefix);
+      return;
+    }
+  }
   else {
     if (!json2Sql(sqlQuery, parsedFromString)) {
       sendNack(segmentPrefix);
@@ -695,11 +784,16 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
                                      const std::string& sqlString,
                                      bool autocomplete)
 {
+#ifndef NDEBUG
   std::cout << "prepareSegments() executes sql : " << sqlString << std::endl;
-
+#endif
+  std::string errMsg;
+  bool success;
   // 4) Run the Query
   std::shared_ptr<MYSQL_RES> results
-    = atmos::util::MySQLPerformQuery(m_databaseHandler, sqlString);
+    = atmos::util::MySQLPerformQuery(m_databaseHandler, sqlString, util::QUERY, success, errMsg);
+  if (!success)
+    std::cout << errMsg << std::endl;
 
   if (!results) {
     std::cout << "null MYSQL_RES for query : " << sqlString << std::endl;
@@ -717,27 +811,29 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
             << " rows" << std::endl;
 
   MYSQL_ROW row;
-  size_t usedBytes = 0;
   uint64_t segmentNo = 0;
-  Json::Value array;
+  Json::Value tmp;
+  Json::Value resultJson;
+  Json::FastWriter fastWriter;
   while ((row = mysql_fetch_row(results.get())))
   {
-    size_t size = strlen(row[0]) + 1;
-    if (usedBytes + size > PAYLOAD_LIMIT) {
+    tmp.append(row[0]);
+    const std::string tmpString = fastWriter.write(tmp);
+    if (tmpString.length() > PAYLOAD_LIMIT) {
       std::shared_ptr<ndn::Data> data
-        = makeReplyData(segmentPrefix, array, segmentNo, false, autocomplete, resultCount);
+        = makeReplyData(segmentPrefix, resultJson, segmentNo, false, autocomplete, resultCount);
       m_mutex.lock();
       m_cache.insert(*data);
       m_mutex.unlock();
-      array.clear();
-      usedBytes = 0;
-      segmentNo++;
+      tmp.clear();
+      resultJson.clear();
+      segmentNo ++;
     }
-    array.append(row[0]);
-    usedBytes += size;
+    resultJson.append(row[0]);
   }
+
   std::shared_ptr<ndn::Data> data
-    = makeReplyData(segmentPrefix, array, segmentNo, true, autocomplete, resultCount);
+    = makeReplyData(segmentPrefix, resultJson, segmentNo, true, autocomplete, resultCount);
   m_mutex.lock();
   m_cache.insert(*data);
   m_mutex.unlock();

@@ -45,6 +45,11 @@ namespace tests{
     {
     }
 
+    void setTableFields(const std::vector<std::string>& tableFields)
+    {
+      m_tableColumns = tableFields;
+    }
+
     const ndn::Name
     getPrefix()
     {
@@ -71,6 +76,21 @@ namespace tests{
     }
 
     bool
+    testJson2Sql(std::stringstream& sqlString,
+                 Json::Value& jsonValue,
+                 util::DatabaseOperation operation)
+    {
+      return json2Sql(sqlString, jsonValue, operation);
+    }
+
+    bool
+    testName2Fields(std::stringstream& sqlString,
+                    std::string& fileName)
+    {
+      return name2Fields(sqlString, fileName);
+    }
+
+    bool
     testValidatePublicationChanges(const std::shared_ptr<const ndn::Data>& data)
     {
       return validatePublicationChanges(data);
@@ -86,6 +106,21 @@ namespace tests{
       , publishAdapterTest1(face, keyChain)
       , publishAdapterTest2(face, keyChain)
     {
+      std::string cx("sha256"), c0("name"), c1("activity"), c2("product"), c3("organization");
+      std::string c4("model"), c5("experiment"), c6("frequency"), c7("modeling_realm");
+      std::string c8("variable_name"), c9("ensemble"), c10("time");
+      tableFields.push_back(cx);
+      tableFields.push_back(c0);
+      tableFields.push_back(c1);
+      tableFields.push_back(c2);
+      tableFields.push_back(c3);
+      tableFields.push_back(c4);
+      tableFields.push_back(c5);
+      tableFields.push_back(c6);
+      tableFields.push_back(c7);
+      tableFields.push_back(c8);
+      tableFields.push_back(c9);
+      tableFields.push_back(c10);
     }
 
     virtual
@@ -116,6 +151,7 @@ namespace tests{
       catch (boost::property_tree::info_parser_error &e) {
         std::cout << "Failed to read config file " << e.what() << std::endl;
       }
+      publishAdapterTest1.setTableFields(tableFields);
       publishAdapterTest1.configAdapter(section, ndn::Name("/test"));
     }
 
@@ -142,6 +178,7 @@ namespace tests{
       catch (boost::property_tree::info_parser_error &e) {
         std::cout << "Failed to read config file " << e.what() << std::endl;;
       }
+      publishAdapterTest2.setTableFields(tableFields);
       publishAdapterTest2.configAdapter(section, ndn::Name("/test"));
     }
 
@@ -150,6 +187,7 @@ namespace tests{
     std::shared_ptr<ndn::KeyChain> keyChain;
     PublishAdapterTest publishAdapterTest1;
     PublishAdapterTest publishAdapterTest2;
+    std::vector<std::string> tableFields;
   };
 
   BOOST_FIXTURE_TEST_SUITE(PublishAdapterTestSuite, PublishAdapterFixture)
@@ -173,6 +211,76 @@ namespace tests{
     BOOST_CHECK(publishAdapterTest2.getSigningId() == ndn::Name("/prefix/signingId"));
     BOOST_CHECK(publishAdapterTest2.getSyncPrefix() ==
                 ndn::Name("ndn:/ndn-atmos/broadcast/chronosync"));
+  }
+
+  BOOST_AUTO_TEST_CASE(PublishAdapterName2FieldsNormalTest)
+  {
+    std::string testFileName1 = "/1/2/3/4/5/6/7/8/9/10";
+    std::stringstream ss;
+    std::string expectString1 = ",'1','2','3','4','5','6','7','8','9','10'";
+    BOOST_CHECK_EQUAL(publishAdapterTest1.testName2Fields(ss, testFileName1), true);
+    BOOST_CHECK_EQUAL(ss.str(), expectString1);
+
+    ss.str("");
+    ss.clear();
+    std::string testFileName2 = "ndn:/1/2/3/4/5/6/777/8/99999/10";
+    std::string expectString2 = ",'1','2','3','4','5','6','777','8','99999','10'";
+    BOOST_CHECK_EQUAL(publishAdapterTest1.testName2Fields(ss, testFileName2), true);
+    BOOST_CHECK_EQUAL(ss.str(), expectString2);
+  }
+
+  BOOST_AUTO_TEST_CASE(PublishAdapterName2FieldsFailureTest)
+  {
+    std::string testFileName1 = "/1/2/3/4/5/6/7/8/9/10/11";//too much components
+    std::stringstream ss;
+    BOOST_CHECK_EQUAL(publishAdapterTest1.testName2Fields(ss, testFileName1), false);
+
+    ss.str("");
+    ss.clear();
+    std::string testFileName2 = "1234567890";
+    BOOST_CHECK_EQUAL(publishAdapterTest1.testName2Fields(ss, testFileName2), false);
+
+    ss.str("");
+    ss.clear();
+    std::string testFileName3 = "ndn:/1/2/3/4/5"; //too little components
+    BOOST_CHECK_EQUAL(publishAdapterTest1.testName2Fields(ss, testFileName3), false);
+  }
+
+  BOOST_AUTO_TEST_CASE(PublishAdapterSqlStringNormalTest)
+  {
+    Json::Value testJson;
+    testJson["add"][0] = "/1/2/3/4/5/6/7/8/9/10";
+    testJson["add"][1] = "ndn:/a/b/c/d/eee/f/gg/h/iiii/j";
+    testJson["remove"][0] = "ndn:/1/2/3/4/5/6/7/8/9/10";
+    testJson["remove"][1] = "/a/b/c/d";
+    testJson["remove"][2] = "/test/for/remove";
+
+    std::stringstream ss;
+    std::string expectRes1 = "INSERT INTO cmip5 (sha256, name, activity, product, organization, \
+model, experiment, frequency, modeling_realm, variable_name, ensemble, time) VALUES(\
+'3738C9C0E0297DE7FE0EE538030597442DEEFF0F2C88778404D7B6E4BAD589F6','/1/2/3/4/5/6/7/8/9/10',\
+'1','2','3','4','5','6','7','8','9','10'),\
+('F93128EE9B7769105C6BDF6AA0FAA8CB4ED429395DDBC2CDDBFBA05F35B320FB','ndn:/a/b/c/d/eee/f/gg/h/iiii/j'\
+,'a','b','c','d','eee','f','gg','h','iiii','j');";
+    BOOST_CHECK_EQUAL(publishAdapterTest1.testJson2Sql(ss, testJson, util::ADD), true);
+    BOOST_CHECK_EQUAL(ss.str(), expectRes1);
+
+    ss.str("");
+    ss.clear();
+    std::string expectRes2 = "delete from cmip5 where name in ('ndn:/1/2/3/4/5/6/7/8/9/10',\
+'/a/b/c/d','/test/for/remove');";
+    BOOST_CHECK_EQUAL(publishAdapterTest1.testJson2Sql(ss, testJson, util::REMOVE), true);
+    BOOST_CHECK_EQUAL(ss.str(), expectRes2);
+  }
+
+  BOOST_AUTO_TEST_CASE(PublishAdapterSqlStringFailureTest)
+  {
+    Json::Value testJson;
+    testJson["add"][0] = "/1/2/3/4/5/6/7/8/9/10";
+    testJson["add"][1] = "/a/b/c/d/eee/f/gg/h/iiii/j/kkk"; //too much components
+    std::stringstream ss;
+    bool res = publishAdapterTest1.testJson2Sql(ss, testJson, util::REMOVE);
+    BOOST_CHECK(res == false);
   }
 
   BOOST_AUTO_TEST_CASE(PublishAdapterValidateDataTestSuccess)

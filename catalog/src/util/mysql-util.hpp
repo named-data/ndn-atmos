@@ -26,6 +26,7 @@
 
 namespace atmos {
 namespace util {
+enum DatabaseOperation {CREATE, UPDATE, ADD, REMOVE, QUERY};
 struct ConnectionDetails {
 public:
   std::string server;
@@ -41,7 +42,11 @@ std::shared_ptr<MYSQL>
 MySQLConnectionSetup(const ConnectionDetails& details);
 
 std::shared_ptr<MYSQL_RES>
-MySQLPerformQuery(std::shared_ptr<MYSQL> connection, const std::string& sql_query);
+MySQLPerformQuery(std::shared_ptr<MYSQL> connection,
+                  const std::string& sql_query,
+                  DatabaseOperation op,
+                  bool& success,
+                  std::string& errMsg);
 
 } // namespace util
 } // namespace atmos

@@ -35,7 +35,7 @@ def build(bld):
         bld(features=['cxx', 'cxxprogram'],
             target="../bin/%s" % name,
             source=[i] + bld.path.ant_glob(['%s/**/*.cpp' % name]),
-            use='NDN_CXX'
+            use='NDN_CXX JSON'
             )
 
     # List all directories files (tool can has multiple .cpp in the directory)

@@ -397,7 +397,8 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
                                                                      1, false, false, 2);
     BOOST_CHECK_EQUAL(data->getName().toUri(), "/atmos/test/prefix/%00%01");
     BOOST_CHECK_EQUAL(data->getFinalBlockId(), ndn::Name::Component(""));
-    const std::string jsonRes(reinterpret_cast<const char*>(data->getContent().value()));
+    const std::string jsonRes(reinterpret_cast<const char*>(data->getContent().value()),
+                              data->getContent().value_size());
     Json::Value parsedFromString;
     Json::Reader reader;
     BOOST_CHECK_EQUAL(reader.parse(jsonRes, parsedFromString), true);
@@ -418,7 +419,8 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
 
     BOOST_CHECK_EQUAL(data->getName().toUri(), "/atmos/test/prefix/%00%02");
     BOOST_CHECK_EQUAL(data->getFinalBlockId(), ndn::Name::Component::fromSegment(2));
-    const std::string jsonRes(reinterpret_cast<const char*>(data->getContent().value()));
+    const std::string jsonRes(reinterpret_cast<const char*>(data->getContent().value()),
+                              data->getContent().value_size());
     Json::Value parsedFromString;
     Json::Reader reader;
     BOOST_CHECK_EQUAL(reader.parse(jsonRes, parsedFromString), true);
@@ -456,7 +458,8 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
     BOOST_CHECK(replyData);
     if (replyData){
       BOOST_CHECK_EQUAL(replyData->getName().getPrefix(2), ndn::Name("/test/query-results"));
-      const std::string jsonRes(reinterpret_cast<const char*>(replyData->getContent().value()));
+      const std::string jsonRes(reinterpret_cast<const char*>(replyData->getContent().value()),
+                                replyData->getContent().value_size());
       Json::Value parsedFromString;
       Json::Reader reader;
       BOOST_CHECK_EQUAL(reader.parse(jsonRes, parsedFromString), true);
@@ -476,22 +479,23 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
     Json::Value testJson;
     testJson["?"] = "/";
     BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL("SELECT activity FROM cmip5;", ss.str());
+    BOOST_CHECK_EQUAL("SELECT DISTINCT activity FROM cmip5;", ss.str());
 
     ss.str("");
     ss.clear();
     testJson.clear();
     testJson["?"] = "/Activity/";
     BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL("SELECT product FROM cmip5 WHERE activity='Activity';", ss.str());
+    BOOST_CHECK_EQUAL("SELECT DISTINCT product FROM cmip5 WHERE activity='Activity';", ss.str());
 
     ss.str("");
     ss.clear();
     testJson.clear();
     testJson["?"] = "/Activity/Product/Organization/Model/Experiment/";
     BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL("SELECT frequency FROM cmip5 WHERE activity='Activity' AND experiment=\
-'Experiment' AND model='Model' AND organization='Organization' AND product='Product';", ss.str());
+    BOOST_CHECK_EQUAL("SELECT DISTINCT frequency FROM cmip5 WHERE activity='Activity' AND \
+experiment='Experiment' AND model='Model' AND organization='Organization' AND product='Product';",
+     ss.str());
 
     ss.str("");
     ss.clear();
@@ -499,9 +503,10 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
     testJson["?"] = "/Activity/Product/Organization/Model/Experiment/Frequency/Modeling/\
 Variable/Ensemble/";
     BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL("SELECT time FROM cmip5 WHERE activity='Activity' AND ensemble='Ensemble' AND\
- experiment='Experiment' AND frequency='Frequency' AND model='Model' AND modeling_realm='Modeling' \
-AND organization='Organization' AND product='Product' AND variable_name='Variable';",ss.str());
+    BOOST_CHECK_EQUAL("SELECT DISTINCT time FROM cmip5 WHERE activity='Activity' AND ensemble=\
+'Ensemble' AND experiment='Experiment' AND frequency='Frequency' AND model='Model' AND \
+modeling_realm='Modeling' AND organization='Organization' AND product='Product' AND variable_name=\
+'Variable';",ss.str());
   }
 
   BOOST_AUTO_TEST_CASE(QueryAdapterAutocompletionSqlFailTest)
