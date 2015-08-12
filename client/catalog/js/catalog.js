@@ -142,7 +142,7 @@ var Atmos = (function(){
 
     this.searchBar.submit(function(e){
       e.preventDefault();
-      scope.createAlert("This feature is currently incomplete.");
+      scope.pathSearch();
     });
 
     this.searchButton.click(function(){
@@ -169,6 +169,41 @@ var Atmos = (function(){
 
   }
 
+  Atmos.prototype.clearResults = function(){
+    this.results = []; //Drop any old results.
+    this.retrievedSegments = 0;
+    this.resultCount = Infinity;
+    this.page = 0;
+    this.resultTable.empty();
+  }
+
+  Atmos.prototype.pathSearch = function(){
+    var value = this.searchInput.val();
+
+    this.clearResults();
+
+    var scope = this;
+
+    this.query(this.catalog, {"??": value},
+    function(interest, data){
+      console.log("Query response:", interest, data);
+
+      var parameters = JSON.stringify({"??": value});
+
+      var ack = data.getName();
+
+      scope.name = new Name(scope.catalog).append("query-results").append(parameters).append(ack.get(-3)).append(ack.get(-2));
+
+      scope.getResults(0);
+
+    },
+    function(interest){
+      console.warn("Request failed! Timeout", interest);
+      scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
+    });
+
+  }
+
   Atmos.prototype.search = function(){
 
     var filters = this.getFilters();
@@ -177,11 +212,7 @@ var Atmos = (function(){
 
     console.log("Initiating query");
 
-    this.results = []; //Drop any old results.
-    this.retrievedSegments = 0;
-    this.resultCount = Infinity;
-    this.page = 0;
-    this.resultTable.empty();
+    this.clearResults();
 
     var scope = this;
 
