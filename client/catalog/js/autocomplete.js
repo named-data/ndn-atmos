@@ -77,12 +77,14 @@
 
       var updateFromList = function(){
         var val = input.val(); //Needs to be unfiltered, for filtering existing results.
+        var temp = lastList;
         setAutoComplete(lastList.reduce(function(prev, current){
           if (current.indexOf(val) === 0){
             prev.push(current);
           }
           return prev;
         }, []));
+        lastList = temp;
       }
 
       this.keydown(function(e){
@@ -126,6 +128,16 @@
           getSuggestions(getValue(), setAutoComplete);
           e.preventDefault(); //Don't print tab or select a different element.
           break;
+
+          case 8:
+          console.log("Detected backspace");
+          if (input.val().slice(-1) == "/"){
+            e.preventDefault();
+            input.val(input.val().slice(0,-1)); //Manually backspace early. (Have to do it manually)
+            getSuggestions(getValue(), setAutoComplete);
+          } else {
+            updateFromList(setAutoComplete);
+          }
 
           default:
           updateFromList();
