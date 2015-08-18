@@ -37,10 +37,6 @@ body#body {}
   border: none;
 }
 
-.pager {
-  /* margin: 0; */
-}
-
 #searchBar {
   display: inline-block;
 }
@@ -104,12 +100,27 @@ body#body {}
   position: absolute;
   left: 0;
   transition: max-height 1s;
+  z-index: 1;
 }
 
 *:focus ~ .autoComplete { /* If the parent detects focus on any subelement or itself */
   max-height: 500px;
 }
 
-.pager li > div {
-  display: inline-block;
+.interest-button {
+  font-size: medium;
+}
+
+.interest-button.disabled {
+  cursor: not-allowed !important;
+  color: gray;
+}
+
+.hidden {
+  height: 0;
+  display: none;
+}
+
+.disabled {
+  cursor: not-allowed;
 }

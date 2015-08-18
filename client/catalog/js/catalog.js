@@ -62,79 +62,23 @@ var Atmos = (function(){
     this.searchInput = $('#search');
     this.searchBar = $('#searchBar');
     this.searchButton = $('#searchButton');
-    this.pagers = $('.pager');
+    this.resultMenu = $('.resultMenu');
     this.alerts = $('#alerts');
 
     var scope = this;
 
     this.resultTable.on('click', '.interest-button', function(){
-      var button = $(this);
-
-      if (button.is(':disabled')){
-        console.warn("Attempt to request again!");
-      }
-
-      var name = button.parent().prev().text();
-      var interest = new Interest(new Name('/retrieve' + name));
-      scope.face.expressInterest(interest, function(){}, function(){});
-
-      button.text("Requested!")
-        .removeClass('btn-primary')
-        .addClass('btn-success')
-        .addClass('disabled')
-        .prop('disabled', true);
+      scope.request(this);
     });
 
-    //Filter setup
-    $.getJSON("search_catagories.json").done(function (data) {
-      $.each(data, function (pageSection, contents) {
-        if (pageSection == "SearchCatagories") {
-          $.each(contents, function (category, searchOptions) {
-            //Create the category
-            var e = $('<li><a href="#">' + category.replace(/\_/g, " ") + '</a><ul class="subnav nav nav-pills nav-stacked"></ul></li>');
-
-            var sub = e.find('ul.subnav');
-            $.each(searchOptions, function(index, name){
-              //Create the filter list inside the category
-              var item = $('<li><a href="#">' + name + '</a></li>');
-              sub.append(item);
-              item.click(function(){ //Click on the side menu filters
-                if (item.hasClass('active')){ //Does the filter already exist?
-                  item.removeClass('active');
-                  scope.filters.find(':contains(' + category + ':' + name + ')').remove();
-                } else { //Add a filter
-                  item.addClass('active');
-                  var filter = $('<span class="label label-default"></span>');
-                  filter.text(category + ':' + name);
-
-                  scope.filters.append(filter);
-
-                  filter.click(function(){ //Click on a filter
-                    filter.remove();
-                    item.removeClass('active');
-                  });
-                }
-
-              });
-            });
-
-            //Toggle the menus. (Only respond when the immediate tab is clicked.)
-            e.find('> a').click(function(){
-              scope.categories.find('.subnav').slideUp();
-              var t = $(this).siblings('.subnav');
-              if ( !t.is(':visible') ){ //If the sub menu is not visible
-                t.slideDown(function(){
-                  t.triggerHandler('focus');
-                }); //Make it visible and look at it.
-              }
-            });
-
-            scope.categories.append(e);
-
-          });
-        }
-      });
+    $('.requestSelectedButton').click(function(){
+      scope.request(
+        scope.resultTable.find('.resultSelector:checked:not([disabled])')
+        .parent().next().find('.interest-button')
+      );
     });
+
+    this.filterSetup();
 
     this.searchInput.autoComplete(function(field, callback){
       scope.autoComplete(field, callback);
@@ -150,21 +94,30 @@ var Atmos = (function(){
       scope.search();
     });
 
-    this.pagers.find('.next').click(function(){
+    this.resultMenu.find('.next').click(function(){
       if (!$(this).hasClass('disabled')){
         scope.getResults(scope.page + 1);
       }
     });
-    this.pagers.find('.previous').click(function(){
+    this.resultMenu.find('.previous').click(function(){
       if (!$(this).hasClass('disabled')){
         scope.getResults(scope.page - 1);
       }
     });
-    this.pagers.find('.pageLength').attr('contentEditable', true)
-    .blur(function(){
-      scope.resultsPerPage = Number($(this).text());
-      scope.pagers.find('.pageLength').text(scope.resultsPerPage);
-      scope.getResults(0); //Reset page to 0;
+
+    var rpps = $('.resultsPerPageSelector').click(function(){
+
+      var t = $(this);
+
+      if (t.hasClass('active')){
+        return;
+      }
+
+      rpps.find('.active').removeClass('active');
+      t.addClass('active');
+      scope.resultsPerPage = Number(t.text());
+      scope.getResults(0); //Force return to page 1;
+
     });
 
   }
@@ -283,29 +236,47 @@ var Atmos = (function(){
 
   Atmos.prototype.showResults = function(resultIndex) {
 
+    if ($('#results').hasClass('hidden')){
+      $('#results').removeClass('hidden').slideDown();
+    }
+
     var results = this.results.slice(this.resultsPerPage * resultIndex, this.resultsPerPage * (resultIndex + 1));
 
-    var resultDOM = $(results.reduce(function(prev, current){
-      prev.push('<tr><td><input type="checkbox"></td><td>');
-      prev.push(current);
-      prev.push('</td><td><button class="interest-button btn btn-primary btn-sm">Retrieve</button></td></tr>');
-      return prev;
-    }, []).join(''));
+    var resultDOM = $(
+      results.reduce(function(prev, current){
+        prev.push('<tr><td><input class="resultSelector" type="checkbox"></td><td>');
+        prev.push(current);
+        prev.push('</td></tr>');
+        return prev;
+      }, ['<tr><th><input id="resultSelectAll" type="checkbox" title="Select All"> Select</th><th>Name</th></tr>']).join('')
+    );
 
-    this.resultTable.empty().append(resultDOM);
+    resultDOM.find('#resultSelectAll').click(function(){
+      if ($(this).is(':checked')){
+        resultDOM.find('.resultSelector:not([disabled])').prop('checked', true);
+      } else {
+        resultDOM.find('.resultSelector:not([disabled])').prop('checked', false);
+      }
+    });
 
-    this.pagers.find('.pageNumber').text(resultIndex + 1);
+    this.resultTable.empty().append(resultDOM).slideDown();
+    if (this.resultMenu.hasClass('hidden')){
+      this.resultMenu.removeClass('hidden').slideDown();
+    }
+
+    this.resultMenu.find('.pageNumber').text(resultIndex + 1);
+    this.resultMenu.find('.pageLength').text(this.resultsPerPage * (resultIndex + 1));
 
     if (this.resultsPerPage * (resultIndex + 1) >= this.resultCount) {
-      this.pagers.find('.next').addClass('disabled');
+      this.resultMenu.find('.next').addClass('disabled');
     } else if (resultIndex === 0){
-      this.pagers.find('.next').removeClass('disabled');
+      this.resultMenu.find('.next').removeClass('disabled');
     }
 
     if (resultIndex === 0){
-      this.pagers.find('.previous').addClass('disabled');
+      this.resultMenu.find('.previous').addClass('disabled');
     } else if (resultIndex === 1) {
-      this.pagers.find('.previous').removeClass('disabled');
+      this.resultMenu.find('.previous').removeClass('disabled');
     }
 
   }
@@ -338,8 +309,8 @@ var Atmos = (function(){
       function(interest, data){ //Response
 
         if (data.getContent().length === 0){
-          scope.pagers.find('.totalResults').text(0);
-          scope.pagers.find('.pageNumber').text(0);
+          scope.resultMenu.find('.totalResults').text(0);
+          scope.resultMenu.find('.pageNumber').text(0);
           console.log("Empty response.");
           return;
         }
@@ -347,8 +318,8 @@ var Atmos = (function(){
         var content = JSON.parse(data.getContent().toString().replace(/[\n\0]/g,""));
 
         if (!content.results){
-          scope.pagers.find('.totalResults').text(0);
-          scope.pagers.find('.pageNumber').text(0);
+          scope.resultMenu.find('.totalResults').text(0);
+          scope.resultMenu.find('.pageNumber').text(0);
           console.log("No results were found!");
           return;
         }
@@ -357,7 +328,7 @@ var Atmos = (function(){
 
         scope.resultCount = content.resultCount;
 
-        scope.pagers.find('.totalResults').text(scope.resultCount);
+        scope.resultMenu.find('.totalResults').text(scope.resultCount);
 
         scope.page = index;
 
@@ -417,6 +388,136 @@ var Atmos = (function(){
 
     this.alerts.append(alert);
   }
+
+  /**
+   * Requests all of the names represented by the buttons in the elements list.
+   *
+   * @param elements {Array<jQuery>} A list of the interestButton elements
+   */
+  Atmos.prototype.request = function(elements){
+
+    var scope = this;
+    $(elements).filter(':not(.disabled)').each(function(){
+      var button = $(this);
+
+      if (button.hasClass('disabled')){
+        console.warn("An attempt to request a disabled element has occured");
+        return;
+      }
+
+      var name = button.text();
+      var interest = new Interest(new Name('/retrieve' + name));
+      scope.face.expressInterest(interest, function(){}, function(){});
+
+    })
+    .append('<span class="badge">Requested!</span>')
+    .addClass('disabled')
+    .addClass('label-success')
+    .parent().prev().find('.resultSelector').prop('disabled', true).prop('checked', false);
+
+  }
+
+  Atmos.prototype.filterSetup = function() {
+    //Filter setup
+
+    var prefix = new Name(this.catalog).append("filters-initialization");
+
+    var scope = this;
+
+    this.getAll(prefix, function(data) { //Success
+      var raw = JSON.parse(data.replace(/[\n\0]/g, '')); //Remove null byte and parse
+
+      console.log("Filter categories:", raw);
+
+      $.each(raw, function(index, object){ //Unpack list of objects
+        $.each(object, function(category, searchOptions) { //Unpack category from object (We don't know what it is called)
+          //Create the category
+          var e = $('<li><a href="#">' + category.replace(/\_/g, " ") + '</a><ul class="subnav nav nav-pills nav-stacked"></ul></li>');
+
+          var sub = e.find('ul.subnav');
+          $.each(searchOptions, function(index, name){
+            //Create the filter list inside the category
+            var item = $('<li><a href="#">' + name + '</a></li>');
+            sub.append(item);
+            item.click(function(){ //Click on the side menu filters
+              if (item.hasClass('active')){ //Does the filter already exist?
+                item.removeClass('active');
+                scope.filters.find(':contains(' + category + ':' + name + ')').remove();
+              } else { //Add a filter
+                item.addClass('active');
+                var filter = $('<span class="label label-default"></span>');
+                filter.text(category + ':' + name);
+
+                scope.filters.append(filter);
+
+                filter.click(function(){ //Click on a filter
+                  filter.remove();
+                  item.removeClass('active');
+                });
+              }
+
+            });
+          });
+
+          //Toggle the menus. (Only respond when the immediate tab is clicked.)
+          e.find('> a').click(function(){
+            scope.categories.find('.subnav').slideUp();
+            var t = $(this).siblings('.subnav');
+            if ( !t.is(':visible') ){ //If the sub menu is not visible
+              t.slideDown(function(){
+                t.triggerHandler('focus');
+              }); //Make it visible and look at it.
+            }
+          });
+
+          scope.categories.append(e);
+
+        });
+      });
+
+    }, function(interest){ //Timeout
+      scope.createAlert("Failed to initialize the filters!", "alert-danger");
+      console.error("Failed to initialize filters!", interest);
+    });
+
+  }
+
+  Atmos.prototype.getAll = function(prefix, callback, timeout){
+
+    var scope = this;
+    var d = [];
+
+    var request = function(segment){
+
+      var name = new Name(prefix);
+      name.appendSegment(segment);
+
+      var interest = new Interest(name);
+      interest.setInterestLifetimeMilliseconds(1000);
+      interest.setMustBeFresh(true); //Is this needed?
+
+      scope.face.expressInterest(interest, handleData, timeout);
+
+    }
+
+
+    var handleData = function(interest, data){
+
+      d.push(data.getContent().toString());
+
+      if (interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment()){
+        callback(d.join(""));
+      } else {
+        request(interest.getName().toSegment()++);
+      }
+
+    }
+
+    request(0);
+
+
+  }
+
   Atmos.closeButton = '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
 
   return Atmos;

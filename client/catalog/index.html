@@ -42,7 +42,7 @@
     <div class="row">
 
       <div class="col-sm-3 col-md-2 sidebar">
-        <div class="panel panel-default">
+        <div class="panel panel-primary">
           <div class="panel-heading">
             <span>Filter Categories</span>
           </div>
@@ -56,7 +56,7 @@
 
         <div id="alerts"></div>
 
-        <div class="panel panel-default">
+        <div class="panel panel-info">
           <div class="panel-heading">Filter Based Search</div>
           <div class="panel-body">
             <div id="filters"></div>
@@ -64,7 +64,7 @@
           </div>
         </div>
 
-        <div class="panel panel-default">
+        <div class="panel panel-info">
           <div class="panel-heading">Path Based Search</div>
           <div class="panel-body">
             <form class="form-inline" id="searchBar">
@@ -82,24 +82,53 @@
           </div>
         </div>
 
-        <div class="panel panel-primary">
-          <div class="panel-heading">Results</div>
+        <div id="results" class="panel panel-default hidden">
           <div class="panel-body">
-            <nav>
-              <ul class="pager">
-                <li class="previous disabled"><a href="#">&larr; Previous</a></li>
-                <li>(Page <div class="pageNumber">0</div>) Showing <span class="pageLength">25</span> of <div class="totalResults">0</div> Results</li>
-                <li class="next disabled"><a href="#">Next &rarr;</a></li>
+            <nav class="navbar navbar-inverse col-md-12 resultMenu hidden">
+              <ul class="nav navbar-nav navbar-left">
+                <li class="previous disabled">
+                  <a href="#">&larr; Previous</a>
+                </li>
+                <li class="dropdown">
+                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button">Results Per Page <span class="caret"></span></a>
+                  <ul class="dropdown-menu">
+                    <li class="active"><a href="#" class="resultsPerPageSelector">25</a></li>
+                    <li><a href="#" class="resultsPerPageSelector">50</a></li>
+                    <li><a href="#" class="resultsPerPageSelector">100</a></li>
+                    <li><a href="#" class="resultsPerPageSelector">200</a></li>
+                  </ul>
+                </li>
+                <li><a href="#" class="requestSelectedButton">Request Selected</a></li>
+              </ul>
+              <div class="navbar-text">(Page <span class="pageNumber">0</span>) <span class="pageLength">0</span>/<span class="totalResults">0</span> Results</div>
+              <ul class="nav navbar-nav navbar-right">
+                <li class="next disabled">
+                  <a href="#">Next &rarr;</a>
+                </li>
               </ul>
             </nav>
             <table id="resultTable" class="table"></table>
-          </div>
-          <div class="panel-footer">
-            <nav>
-              <ul class="pager">
-                <li class="previous disabled"><a href="#">&larr; Previous</a></li>
-                <li>(Page <div class="pageNumber">0</div>) Showing <span class="pageLength">25</span> of <div class="totalResults">0</div> Results</li>
-                <li class="next disabled"><a href="#">Next &rarr;</a></li>
+            <nav class="navbar navbar-inverse col-md-12 resultMenu hidden">
+              <ul class="nav navbar-nav navbar-left">
+                <li class="previous disabled">
+                  <a href="#">&larr; Previous</a>
+                </li>
+                <li class="dropup">
+                  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button">Results Per Page <span class="caret"></span></a>
+                  <ul class="dropdown-menu">
+                    <li class="active"><a href="#" class="resultsPerPageSelector">25</a></li>
+                    <li><a href="#" class="resultsPerPageSelector">50</a></li>
+                    <li><a href="#" class="resultsPerPageSelector">100</a></li>
+                    <li><a href="#" class="resultsPerPageSelector">200</a></li>
+                  </ul>
+                </li>
+                <li><a href="#" class="requestSelectedButton">Request Selected</a></li>
+              </ul>
+              <div class="navbar-text">(Page <span class="pageNumber">0</span>) <span class="pageLength">0</span>/<span class="totalResults">0</span> Results</div>
+              <ul class="nav navbar-nav navbar-right">
+                <li class="next disabled">
+                  <a href="#">Next &rarr;</a>
+                </li>
               </ul>
             </nav>
           </div>
