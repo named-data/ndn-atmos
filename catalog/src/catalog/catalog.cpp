@@ -46,7 +46,7 @@ Catalog::onConfig(const util::ConfigSection& configSection,
   }
   for (auto i = configSection.begin();
        i != configSection.end();
-       ++ i)
+       ++i)
   {
     if (i->first == "prefix") {
       m_prefix.clear();
@@ -63,10 +63,17 @@ Catalog::onConfig(const util::ConfigSection& configSection,
         m_nameFields.push_back(token);
       }
     }
+    if (i->first == "databaseTable") {
+      m_databaseTable = i->second.get_value<std::string>();
+    }
   }
   if (m_nameFields.size() == 0) { // nameFields must not be empty
     throw Error("Empty value for \"nameFields\""
                              " in \"general\" section");
+  }
+  if (m_databaseTable.empty()) {
+    throw Error("Empty value for \"databaseTable\""
+                " in \"general\" section");
   }
 }
 
@@ -93,9 +100,9 @@ Catalog::initializeAdapters()
   util::ConfigFile config(&util::ConfigFile::ignoreUnknownSection);
   for (auto i = m_adapters.begin();
        i != m_adapters.end();
-       ++ i)
+       ++i)
   {
-    (*i)->setConfigFile(config, m_prefix, m_nameFields);
+    (*i)->setConfigFile(config, m_prefix, m_nameFields, m_databaseTable);
   }
 
   config.parse(m_configFile, true);

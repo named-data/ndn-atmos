@@ -141,11 +141,7 @@ var Atmos = (function(){
     function(interest, data){
       console.log("Query response:", interest, data);
 
-      var parameters = JSON.stringify({"??": value});
-
-      var ack = data.getName();
-
-      scope.name = new Name(scope.catalog).append("query-results").append(parameters).append(ack.get(-3)).append(ack.get(-2));
+      scope.name = data.getContent().toString().replace(/[\n\0]/g,"");
 
       scope.getResults(0);
 
@@ -173,11 +169,7 @@ var Atmos = (function(){
     function(interest, data){ //Response function
       console.log("Query Response:", interest, data);
 
-      var parameters = JSON.stringify(filters);
-
-      var ack = data.getName();
-
-      scope.name = new Name(scope.catalog).append("query-results").append(parameters).append(ack.get(-3)).append(ack.get(-2));
+      scope.name = data.getContent().toString().replace(/[\n\0]/g,"");
 
       scope.getResults(0);
 
@@ -204,9 +196,7 @@ var Atmos = (function(){
     this.query(this.catalog, {"?": field},
     function(interest, data){
 
-      var ack = data.getName();
-
-      var name = new Name(scope.catalog).append('query-results').append(JSON.stringify({"?": field})).append(ack.get(-3)).append(ack.get(-2));
+      var name = new Name(data.getContent().toString().replace(/[\n\0]/g,""));
 
       var interest = new Interest(name);
       interest.setInterestLifetimeMilliseconds(5000);

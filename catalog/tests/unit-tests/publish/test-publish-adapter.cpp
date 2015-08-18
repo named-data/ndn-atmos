@@ -45,7 +45,14 @@ namespace tests{
     {
     }
 
-    void setTableFields(const std::vector<std::string>& tableFields)
+    void
+    setDatabaseTable(const std::string& databaseTable)
+    {
+      m_databaseTable = databaseTable;
+    }
+
+    void
+    setTableFields(const std::vector<std::string>& tableFields)
     {
       m_tableColumns = tableFields;
     }
@@ -103,6 +110,7 @@ namespace tests{
     PublishAdapterFixture()
       : face(makeDummyClientFace(io))
       , keyChain(new ndn::KeyChain())
+      , databaseTable("cmip5")
       , publishAdapterTest1(face, keyChain)
       , publishAdapterTest2(face, keyChain)
     {
@@ -121,6 +129,10 @@ namespace tests{
       tableFields.push_back(c8);
       tableFields.push_back(c9);
       tableFields.push_back(c10);
+      publishAdapterTest1.setDatabaseTable(databaseTable);
+      publishAdapterTest1.setTableFields(tableFields);
+      publishAdapterTest2.setDatabaseTable(databaseTable);
+      publishAdapterTest2.setTableFields(tableFields);
     }
 
     virtual
@@ -151,7 +163,7 @@ namespace tests{
       catch (boost::property_tree::info_parser_error &e) {
         std::cout << "Failed to read config file " << e.what() << std::endl;
       }
-      publishAdapterTest1.setTableFields(tableFields);
+
       publishAdapterTest1.configAdapter(section, ndn::Name("/test"));
     }
 
@@ -178,16 +190,17 @@ namespace tests{
       catch (boost::property_tree::info_parser_error &e) {
         std::cout << "Failed to read config file " << e.what() << std::endl;;
       }
-      publishAdapterTest2.setTableFields(tableFields);
+
       publishAdapterTest2.configAdapter(section, ndn::Name("/test"));
     }
 
   protected:
     std::shared_ptr<DummyClientFace> face;
     std::shared_ptr<ndn::KeyChain> keyChain;
+    std::vector<std::string> tableFields;
+    std::string databaseTable;
     PublishAdapterTest publishAdapterTest1;
     PublishAdapterTest publishAdapterTest2;
-    std::vector<std::string> tableFields;
   };
 
   BOOST_FIXTURE_TEST_SUITE(PublishAdapterTestSuite, PublishAdapterFixture)

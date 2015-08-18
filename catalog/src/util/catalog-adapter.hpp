@@ -69,11 +69,14 @@ public:
    * Helper function that sets the configuration section handler
    * @param config: ConfigFile object to set the handler
    * @param prefix: Catalog prefix
+   * @param nameFields: string vector that contains filter category names
+   * @param databaseTable: table name in the database
    */
   virtual void
   setConfigFile(util::ConfigFile& config,
                 const ndn::Name& prefix,
-                const std::vector<std::string>& nameFields) = 0;
+                const std::vector<std::string>& nameFields,
+                const std::string& databaseTable) = 0;
 
 protected:
 
@@ -122,6 +125,7 @@ protected:
   // Name for the signing key
   ndn::Name m_signingId;
   std::vector<std::string> m_nameFields;
+  std::string m_databaseTable;
 }; // class CatalogAdapter
 
 

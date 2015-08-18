@@ -1,5 +1,5 @@
 ; The catalog section contains settings of catalog
-general:
+general
 {
   ; Set the catalog prefix, so that adapters can extend it as their own prefix
   ; e.g., suppose that the catalog has the prefix "ndn:/cmip5", so QueryAdapter has the prefix
@@ -8,18 +8,26 @@ general:
 
   prefix /catalog/myUniqueName
 
-  ; name fileds conatin name components for the scientifi data, for example, the climate data
-  ; contains name fileds like activity, ..., time
+  ; Set name components for the scientific data, for example, the climate data
+  ; contains name fields like activity, ..., time
   nameFields activity,product,organization,model,experiment,frequency,modeling_realm,variable_name,ensemble,time
+
+  ; Set the database table name for the scientific data
+  databaseTable cmip5
 }
 
 ; The queryAdapter section contains settings of queryAdapter
 queryAdapter
 {
-  ; signingId ndn:/cmip5/test/query/identity; Set the Identity that signs data that respond
-  ; the queries
+  ; ; Set the Identity that signs data that respond the queries
+  ; ; If the identity contains multiple keys, use the default one
+  ; signingId ndn:/cmip5/test/query/identity
 
-  ; The database section contains settings of database for QueryAdapter
+  ; Set the filter category names, for example,
+  ; the filter category contains name fields like activity, ..., ensemble
+  filterCategoryNames activity,product,organization,model,experiment,frequency,modeling_realm,variable_name,ensemble
+
+  ; Set database settings for QueryAdapter
   database
   {
     dbServer 127.0.0.1  ; Specify the database server
@@ -32,11 +40,12 @@ queryAdapter
 ; The publishAdapter section contains settings of publishAdapter
 publishAdapter
 {
-  ; ; Set the identity that signs published data
-  ; signingId ndn:/cmip5/test/publish/identity
+  ; Set the Identity that signs data that respond the queries
+  ; If the identity contains multiple keys, use the default one
+  ; signingId ndn:/cmip5/test/query/identity
 
-  ; ; The security section contains the rules for the adapter to verify the
-  ; ; published files indeed come from a valid publisher.
+  ; The security section contains the rules for the adapter to verify the
+  ; published files indeed come from a valid publisher.
   ; security
   ; {
   ;   rule
@@ -78,16 +87,17 @@ publishAdapter
   sync
   {
     ; Set the prefix for sync messages, default 'ndn:/ndn/broadcast'
-    prefix ndn:/ndn/broadcast
+    prefix /ndn/broadcast
 
-    ; ; The sync_data_security section contains the rules that are required for ChronoSync nodes to
-    ; ; verify published data by other ChronoSync nodes.
-    ; ; The ChronoSync validator will be disabled when sync_data_security section is missing.
+    ; The sync_data_security section contains the rules that are required for ChronoSync nodes to
+    ; verify published data by other ChronoSync nodes.
+    ; The ChronoSync validator will be disabled when sync_data_security section is missing.
+
     ; sync_data_security
     ; {
-    ;   ; ; This section defines the trust model for the ChronoSync data Management. It consists of
-    ;   ; ; rules and trust-anchors, which are briefly defined in this file. Multiple rules can be
-    ;   ; ; included
+    ;   ; This section defines the trust model for the ChronoSync data Management. It consists of
+    ;   ; rules and trust-anchors, which are briefly defined in this file. Multiple rules can be
+    ;   ; included
     ;   ; rule
     ;   ; {
     ;   ;   id "ChronoSync Update Messages Rule"

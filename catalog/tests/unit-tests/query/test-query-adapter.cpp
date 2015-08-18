@@ -45,6 +45,11 @@ namespace tests{
     {
     }
 
+    void setDatabaseTable(const std::string& databaseTable)
+    {
+      m_databaseTable.assign(databaseTable);
+    }
+
     void setNameFields(const std::vector<std::string>& nameFields)
     {
       m_nameFields = nameFields;
@@ -91,10 +96,12 @@ namespace tests{
                  uint64_t segmentNo,
                  bool isFinalBlock,
                  bool isAutocomplete,
-                 uint64_t resultCount)
+                 uint64_t resultCount,
+                 uint64_t viewStart,
+                 uint64_t viewEnd)
     {
       return makeReplyData(segmentPrefix, value, segmentNo, isFinalBlock,
-                           isAutocomplete, resultCount);
+                           isAutocomplete, resultCount, viewStart, viewEnd);
     }
 
     void
@@ -115,7 +122,7 @@ namespace tests{
       fileList.append("/ndn/test3");
 
       std::shared_ptr<ndn::Data> data = makeReplyData(segmentPrefix,
-                                                      fileList, 0, true, false, 3);
+                                                      fileList, 0, true, false, 3, 0, 2);
       m_mutex.lock();
       m_cache.insert(*data);
       m_mutex.unlock();
@@ -155,6 +162,13 @@ namespace tests{
     {
       return json2AutocompletionSql(sqlQuery, jsonValue);
     }
+
+    bool
+    json2CompleteSearchSqlTest(std::stringstream& sqlQuery,
+                               Json::Value& jsonValue)
+    {
+      return json2CompleteSearchSql(sqlQuery, jsonValue);
+    }
   };
 
   class QueryAdapterFixture : public UnitTestTimeFixture
@@ -163,6 +177,7 @@ namespace tests{
     QueryAdapterFixture()
       : face(makeDummyClientFace(io))
       , keyChain(new ndn::KeyChain())
+      , databaseTable("cmip5")
       , queryAdapterTest1(face, keyChain)
       , queryAdapterTest2(face, keyChain)
     {
@@ -179,6 +194,11 @@ namespace tests{
       nameFields.push_back(c8);
       nameFields.push_back(c9);
       nameFields.push_back(c10);
+
+      queryAdapterTest1.setDatabaseTable(databaseTable);
+      queryAdapterTest1.setNameFields(nameFields);
+      queryAdapterTest2.setDatabaseTable(databaseTable);
+      queryAdapterTest2.setNameFields(nameFields);
     }
 
     virtual
@@ -194,6 +214,7 @@ namespace tests{
       try {
         std::stringstream ss;
         ss << "signingId /test/signingId\
+             filterCategoryNames activity,product,organization,model,experiment,frequency,modeling_realm,variable_name,ensemble\
              database                   \
              {                          \
               dbServer localhost        \
@@ -206,7 +227,7 @@ namespace tests{
       catch (boost::property_tree::info_parser_error &e) {
         std::cout << "Failed to read config file " << e.what() << std::endl;;
       }
-      queryAdapterTest1.setNameFields(nameFields);
+
       queryAdapterTest1.configAdapter(section, ndn::Name("/test"));
     }
 
@@ -216,7 +237,9 @@ namespace tests{
       util::ConfigSection section;
       try {
         std::stringstream ss;
-        ss << "database\
+        ss << "\
+             filterCategoryNames activity,product,organization,model,experiment,frequency,modeling_realm,variable_name,ensemble\
+             database\
              {                                  \
               dbServer localhost                \
               dbName testdb                     \
@@ -228,16 +251,17 @@ namespace tests{
       catch (boost::property_tree::info_parser_error &e) {
         std::cout << "Failed to read config file " << e.what() << std::endl;;
       }
-      queryAdapterTest2.setNameFields(nameFields);
+
       queryAdapterTest2.configAdapter(section, ndn::Name("/test"));
     }
 
   protected:
     std::shared_ptr<DummyClientFace> face;
     std::shared_ptr<ndn::KeyChain> keyChain;
+    std::string databaseTable;
+    std::vector<std::string> nameFields;
     QueryAdapterTest queryAdapterTest1;
     QueryAdapterTest queryAdapterTest2;
-    std::vector<std::string> nameFields;
   };
 
   BOOST_FIXTURE_TEST_SUITE(QueryAdapterTestSuite, QueryAdapterFixture)
@@ -381,8 +405,10 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
       = ndn::name::Component::fromVersion(1);
 
     std::shared_ptr<ndn::Data> data = queryAdapterTest2.getAckData(interestPtr, version);
-    BOOST_CHECK_EQUAL(data->getName().toUri(), "/test/ack/data/json/%FD%01/catalogIdPlaceHolder/OK");
-    BOOST_CHECK_EQUAL(data->getContent().value_size(), 0);
+    BOOST_CHECK_EQUAL(data->getName().toUri(), "/test/ack/data/json");
+    BOOST_CHECK_EQUAL(std::string(reinterpret_cast<const char*>(data->getContent().value()),
+                                  data->getContent().value_size()),
+                      "/query-results/catalogIdPlaceHolder/json/%FD%01");
   }
 
   BOOST_AUTO_TEST_CASE(QueryAdapterMakeReplyDataTest1)
@@ -394,7 +420,7 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
     const ndn::Name prefix("/atmos/test/prefix");
 
     std::shared_ptr<ndn::Data> data = queryAdapterTest2.getReplyData(prefix, fileList,
-                                                                     1, false, false, 2);
+                                                                     1, false, false, 2, 0, 1);
     BOOST_CHECK_EQUAL(data->getName().toUri(), "/atmos/test/prefix/%00%01");
     BOOST_CHECK_EQUAL(data->getFinalBlockId(), ndn::Name::Component(""));
     const std::string jsonRes(reinterpret_cast<const char*>(data->getContent().value()),
@@ -414,8 +440,8 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
     fileList.append("/ndn/test1");
     const ndn::Name prefix("/atmos/test/prefix");
 
-    std::shared_ptr<ndn::Data> data = queryAdapterTest2.getReplyData(prefix,
-                                                                     fileList, 2, true, true, 1);
+    std::shared_ptr<ndn::Data> data = queryAdapterTest2.getReplyData(prefix, fileList,
+                                                                     2, true, true, 1, 0, 0);
 
     BOOST_CHECK_EQUAL(data->getName().toUri(), "/atmos/test/prefix/%00%02");
     BOOST_CHECK_EQUAL(data->getFinalBlockId(), ndn::Name::Component::fromSegment(2));
@@ -441,16 +467,18 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
       = std::make_shared<ndn::Interest>(ndn::Name("/test/query").append(jsonMessage.c_str()));
 
     queryAdapterTest2.queryTest(queryInterest);
-    auto ackData = queryAdapterTest2.getDataFromActiveQuery(jsonMessage);
-
-    BOOST_CHECK(ackData);
-    if (ackData) {
-      BOOST_CHECK_EQUAL(ackData->getName().getPrefix(3),
-      ndn::Name("/test/query/%7B%22name%22%3A%22test%22%7D"));
-      BOOST_CHECK_EQUAL(ackData->getName().at(ackData->getName().size() - 1),
-                        ndn::Name::Component("OK"));
-      BOOST_CHECK_EQUAL(ackData->getContent().value_size(), 0);
-    }
+    // TODO: the code below should be enabled when queryAdapter can get the correct the
+    // ChronoSync state; currently, we don't need the activeQuery to save the ACK data;
+    //auto ackData = queryAdapterTest2.getDataFromActiveQuery(jsonMessage);
+    //
+    //BOOST_CHECK(ackData);
+    //if (ackData) {
+    //  BOOST_CHECK_EQUAL(ackData->getName().getPrefix(3),
+    //  ndn::Name("/test/query/%7B%22name%22%3A%22test%22%7D"));
+    //  BOOST_CHECK_EQUAL(ackData->getName().at(ackData->getName().size() - 1),
+    //                    ndn::Name::Component("OK"));
+    //  BOOST_CHECK_EQUAL(ackData->getContent().value_size(), 0);
+    //}
 
     std::shared_ptr<ndn::Interest> resultInterest
       = std::make_shared<ndn::Interest>(ndn::Name("/test/query-results"));
@@ -544,6 +572,62 @@ modeling_realm='Modeling' AND organization='Organization' AND product='Product' 
     testJson4["name"] = param;
     BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson4));
 }
+
+  BOOST_AUTO_TEST_CASE(QueryAdapterCompleteSearchSuccessTest)
+  {
+    initializeQueryAdapterTest2();
+
+    std::stringstream ss;
+    Json::Value testJson;
+    testJson["??"] = "/";
+    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL("SELECT name FROM cmip5;", ss.str());
+
+    ss.str("");
+    ss.clear();
+    testJson.clear();
+    testJson["??"] = "/Activity/Product/Organization/Model/Experiment/Frequency/Modeling/\
+Variable/Ensemble/";
+    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL("SELECT name FROM cmip5 WHERE activity='Activity' AND ensemble=\
+'Ensemble' AND experiment='Experiment' AND frequency='Frequency' AND model='Model' AND \
+modeling_realm='Modeling' AND organization='Organization' AND product='Product' AND variable_name=\
+'Variable';",ss.str());
+  }
+
+  BOOST_AUTO_TEST_CASE(QueryAdapterCompleteSearchFailureTest)
+  {
+    initializeQueryAdapterTest2();
+
+    std::stringstream ss;
+    Json::Value testJson;
+
+    ss.str("");
+    ss.clear();
+    testJson.clear();
+    testJson["??"] = "";
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson));
+
+    ss.str("");
+    ss.clear();
+    Json::Value testJson2; //simply clear does not work
+    testJson2[0] = "test"; // incorrect json object
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson2));
+
+    ss.str("");
+    ss.clear();
+    Json::Value testJson3;
+    testJson3 = Json::Value(Json::arrayValue);  // incorrect json object
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson3));
+
+    ss.str("");
+    ss.clear();
+    Json::Value testJson4;
+    Json::Value param;
+    param[0] = "test";
+    testJson4["name"] = param;  // incorrect json object
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson4));
+  }
 
   BOOST_AUTO_TEST_SUITE_END()
 

@@ -109,6 +109,7 @@ private:
   // Adapters that added by users
   std::vector<std::unique_ptr<util::CatalogAdapter>> m_adapters;
   std::vector<std::string> m_nameFields;
+  std::string m_databaseTable;
 }; // class Catalog
 
 
