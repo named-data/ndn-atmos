@@ -124,3 +124,46 @@ body#body {}
 .disabled {
   cursor: not-allowed;
 }
+
+.panel-heading a[data-toggle="collapse"]::after {
+  font-family: "Glyphicons Halflings";
+  content: "\e114";
+  float: right;
+  color: gray;
+}
+
+.panel-heading a[data-toggle="collapse"].collapsed::after {
+  content: "\e080";
+}
+
+.treeExplorer .treeExplorerNode {
+  padding-left: 25px;
+  display: block;
+  cursor: pointer;
+}
+
+.treeExplorer .treeExplorerNode > .nodeChildren {
+  display: none;
+}
+
+.treeExplorer .treeExplorerNode.open > .nodeChildren {
+  display: block;
+}
+
+.treeExplorer .treeExplorerNode::before {
+  font-family: "Glyphicons Halflings";
+  content: "\e080";
+  color: gray;
+}
+
+.treeExplorer .treeExplorerNode.open::before {
+  content: "\e114";
+}
+
+.treeExplorer .treeExplorerNode.file {
+  cursor: default;
+}
+
+.treeExplorer .treeExplorerNode.file::before {
+  content: "\e022"
+}

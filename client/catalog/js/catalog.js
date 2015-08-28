@@ -81,11 +81,23 @@ var Atmos = (function(){
     this.filterSetup();
 
     this.searchInput.autoComplete(function(field, callback){
-      scope.autoComplete(field, callback);
+      scope.autoComplete(field, function(list){
+        callback(list.map(function(element){
+          return field + element + "/";
+        }));
+      });
     });
 
     this.searchBar.submit(function(e){
       e.preventDefault();
+      if (scope.searchInput.val().length === 0){
+        if (!scope.searchBar.hasClass('has-error')){
+          scope.searchBar.addClass('has-error').append('<span class="help-block">Search path is required!</span>');
+        }
+        return;
+      } else {
+        scope.searchBar.removeClass('has-error').find('.help-block').fadeOut(function(){$(this).remove()});
+      }
       scope.pathSearch();
     });
 
@@ -118,6 +130,16 @@ var Atmos = (function(){
       scope.resultsPerPage = Number(t.text());
       scope.getResults(0); //Force return to page 1;
 
+    });
+
+    $('#treeSearch div').treeExplorer(function(path, callback){
+      console.log("Tree Explorer request", path);
+      scope.autoComplete(path, function(list){
+        console.log("Autocomplete response", list);
+        callback(list.map(function(element){
+          return (path == "/"?"/":"") + element + "/";
+        }));
+      })
     });
 
   }
@@ -182,15 +204,6 @@ var Atmos = (function(){
 
   Atmos.prototype.autoComplete = function(field, callback){
 
-    if (this.searchInput.val().length === 0 && !filters.hasOwnProperty()){
-      if (!this.searchBar.hasClass('has-error')){
-        this.searchBar.addClass('has-error').append('<span class="help-block">A filter or search value is required!</span>');
-      }
-      return;
-    } else {
-      this.searchBar.removeClass('has-error').find('.help-block').fadeOut(function(){$(this).remove()});
-    }
-
     var scope = this;
 
     this.query(this.catalog, {"?": field},
@@ -206,10 +219,9 @@ var Atmos = (function(){
       function(interest, data){
 
         if (data.getContent().length !== 0){
-          var options = JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")).next.map(function(element){
-            return field + element + "/";
-          });
-          callback(options);
+          callback(JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")).next);
+        } else {
+          callback([]);
         }
 
       }, function(interest){
