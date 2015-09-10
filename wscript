@@ -33,10 +33,13 @@ import os
 def options(opt):
     opt.load(['compiler_cxx', 'gnu_dirs'])
 
-    opt.load(['default-compiler-flags', 'boost'],
+    opt.load(['default-compiler-flags', 'boost', 'coverage'],
               tooldir=['.waf-tools'])
 
     opt = opt.add_option_group('ndn-atmos Options')
+
+    opt.add_option('--with-log4cxx', action='store_true', default=False, dest='log4cxx',
+                   help='''Compile with log4cxx''')
 
     opt.add_option('--with-tests', action='store_true', default=False,
                    dest='with_tests', help='''build unit tests''')
@@ -65,6 +68,11 @@ def configure(conf):
     conf.check_cfg(path='mysql_config', args=['--cflags', '--libs'], package='',
                    uselib_store='MYSQL', mandatory=True)
 
+
+    if conf.options.log4cxx:
+        conf.check_cfg(package='liblog4cxx', args=['--cflags', '--libs'], uselib_store='LOG4CXX',
+                       mandatory=True)
+
     boost_libs = 'system random thread filesystem'
 
     if conf.options.with_tests:
@@ -79,7 +87,10 @@ def configure(conf):
                     " (http://redmine.named-data.net/projects/nfd/wiki/Boost_FAQ)")
         return
 
+    conf.load('coverage')
+
     conf.define('DEFAULT_CONFIG_FILE', '%s/ndn-atmos/catalog.conf' % conf.env['SYSCONFDIR'])
+    conf.define('LOG4CXX_CONFIG_FILE', '%s/ndn-atmos/log4cxx.properties' % conf.env['SYSCONFDIR'])
 
     conf.write_config_header('config.hpp')
 
@@ -90,7 +101,7 @@ def build (bld):
         features='cxx',
         source=bld.path.ant_glob(['catalog/src/**/*.cpp'],
                                  excl=['catalog/src/main.cpp']),
-        use='NDN_CXX BOOST JSON MYSQL SYNC',
+        use='NDN_CXX BOOST JSON MYSQL SYNC LOG4CXX',
         includes='catalog/src .',
         export_includes='catalog/src .'
     )
@@ -112,5 +123,12 @@ def build (bld):
         features="subst",
         source='catalog.conf.sample.in',
         target='catalog.conf.sample',
+        install_path="${SYSCONFDIR}/ndn-atmos"
+    )
+
+    bld(
+        features="subst",
+        source='log4cxx.properties',
+        target='log4cxx.properties',
         install_path="${SYSCONFDIR}/ndn-atmos"
     )

@@ -42,8 +42,13 @@
 #include <unordered_map>
 #include <mutex>
 
+#include "util/logger.hpp"
+
 namespace atmos {
 namespace publish {
+#ifdef HAVE_LOG4CXX
+  INIT_LOGGER("PublishAdapter");
+#endif
 
 #define RETRY_WHEN_TIMEOUT 2
 // TODO: need to use the configured nameFields
@@ -409,8 +414,7 @@ PublishAdapter<DatabaseHandler>::onConfig(const util::ConfigSection& section,
   m_signingId = ndn::Name(signingId);
   setCatalogId();
 
-  m_syncPrefix.clear();
-  m_syncPrefix.append(syncPrefix);
+  m_syncPrefix = syncPrefix;
   util::ConnectionDetails mysqlId(dbServer, dbUser, dbPasswd, dbName);
 
   initializeDatabase(mysqlId);
@@ -448,7 +452,7 @@ PublishAdapter<MYSQL>::initializeDatabase(const util::ConnectionDetails& databas
     MySQLPerformQuery(m_databaseHandler, createSyncTable, util::CREATE,
                       success, errMsg);
     if (!success)
-      std::cout << errMsg << std::endl;
+      _LOG_DEBUG(errMsg);
 
     // create SQL string for table creation, id, sha256, and name are columns that we need
     std::stringstream ss;
@@ -465,7 +469,7 @@ PublishAdapter<MYSQL>::initializeDatabase(const util::ConnectionDetails& databas
     success = false;
     MySQLPerformQuery(m_databaseHandler, ss.str(), util::CREATE, success, errMsg);
     if (!success)
-      std::cout << errMsg << std::endl;
+      _LOG_DEBUG(errMsg);
   }
   else {
     throw Error("cannot connect to the Database");
@@ -477,17 +481,20 @@ void
 PublishAdapter<DatabaseHandler>::onPublishInterest(const ndn::InterestFilter& filter,
                                                    const ndn::Interest& interest)
 {
+  _LOG_DEBUG(">> PublishAdapter::onPublishInterest");
+
   // Example Interest : /cmip5/publish/<uri>/<nonce>
-  std::cout << "Publish interest : " << interest.getName().toUri() << std::endl;
+  _LOG_DEBUG(interest.getName().toUri());
 
   //send back ACK
-  char buf[4] = "ACK";
+  char buf[] = "ACK";
   std::shared_ptr<ndn::Data> data = std::make_shared<ndn::Data>(interest.getName());
   data->setFreshnessPeriod(ndn::time::milliseconds(10)); // 10 msec
   data->setContent(reinterpret_cast<const uint8_t*>(buf), strlen(buf));
   m_keyChain->sign(*data);
   m_face->put(*data);
-  std::cout << "Sent ACK for " << interest.getName() << std::endl;
+
+  _LOG_DEBUG("ACK interest : " << interest.getName().toUri());
 
 
   //TODO: if already in catalog, what do we do?
@@ -501,15 +508,17 @@ PublishAdapter<DatabaseHandler>::onPublishInterest(const ndn::InterestFilter& fi
   m_face->expressInterest(*retrieveInterest,
                           bind(&PublishAdapter<DatabaseHandler>::onPublishedData,
                                this,_1, _2),
-                          bind(&PublishAdapter<DatabaseHandler>::onTimeout, this, _1));
-  std::cout << "Expressing Interest for: " << retrieveInterest->toUri() << std::endl;
+                          bind(&publish::PublishAdapter<DatabaseHandler>::onTimeout, this, _1));
+
+  _LOG_DEBUG("Expressing Interest " << retrieveInterest->toUri());
+  _LOG_DEBUG("<< PublishAdapter::onPublishInterest");
 }
 
 template <typename DatabaseHandler>
 void
 PublishAdapter<DatabaseHandler>::onTimeout(const ndn::Interest& interest)
 {
-  std::cout << "interest " << interest.getName() << " timed out";
+  _LOG_DEBUG(interest.getName() << "timed out");
 }
 
 template <typename DatabaseHandler>
@@ -517,7 +526,7 @@ void
 PublishAdapter<DatabaseHandler>::onValidationFailed(const std::shared_ptr<const ndn::Data>& data,
                                                     const std::string& failureInfo)
 {
-  std::cout << "Validation failed: " << data->getName() << failureInfo << std::endl;
+  _LOG_DEBUG(data->getName() << " validation failed: " << failureInfo);
 }
 
 template <typename DatabaseHandler>
@@ -525,7 +534,8 @@ void
 PublishAdapter<DatabaseHandler>::onPublishedData(const ndn::Interest& interest,
                                                  const ndn::Data& data)
 {
-  std::cout << "received Data " << data.getName() << std::endl;
+  _LOG_DEBUG(">> PublishAdapter::onPublishedData");
+  _LOG_DEBUG("Data name: " << data.getName());
   if (data.getContent().empty()) {
     return;
   }
@@ -538,13 +548,15 @@ template <typename DatabaseHandler>
 void
 PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod(const ndn::shared_ptr<const ndn::Data>& data)
 {
+  _LOG_DEBUG(">> PublishAdapter::onValidatePublishedDataPayload");
+
   // validate published data payload, if failed, return
   if (!validatePublicationChanges(data)) {
-    std::cout << "data validation failed : " << data->getName() << std::endl;
+    _LOG_DEBUG("Data validation failed : " << data->getName());
 #ifndef NDEBUG
     const std::string payload(reinterpret_cast<const char*>(data->getContent().value()),
                               data->getContent().value_size());
-    std::cout << payload << std::endl;
+    _LOG_DEBUG(payload);
 #endif
     return;
   }
@@ -565,8 +577,9 @@ PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod(const ndn::shared_p
     ndn::Name nextInterestName = data->getName().getPrefix(-1);
     uint64_t incomingSegment = data->getName()[-1].toSegment();
     incomingSegment++;
-    std::cout << " Next Interest Name " << nextInterestName << " Segment " << incomingSegment
-              << std::endl;
+
+    _LOG_DEBUG("Next Interest Name " << nextInterestName << " Segment " << incomingSegment);
+
     std::shared_ptr<ndn::Interest> nextInterest =
       std::make_shared<ndn::Interest>(nextInterestName.appendSegment(incomingSegment));
     nextInterest->setInterestLifetime(ndn::time::milliseconds(4000));
@@ -583,6 +596,8 @@ template <typename DatabaseHandler>
 void
 PublishAdapter<DatabaseHandler>::processUpdateData(const ndn::shared_ptr<const ndn::Data>& data)
 {
+  _LOG_DEBUG(">> PublishAdapter::processUpdateData");
+
   const std::string payload(reinterpret_cast<const char*>(data->getContent().value()),
                             data->getContent().value_size());
 
@@ -596,16 +611,12 @@ PublishAdapter<DatabaseHandler>::processUpdateData(const ndn::shared_ptr<const n
   Json::Reader jsonReader;
   if (!jsonReader.parse(payload, parsedFromPayload)) {
     // todo: logging events
-    std::cout << "fail to parse the update data" << std::endl;
+    _LOG_DEBUG("Fail to parse the update data");
     return;
   }
-  else {
-    std::cout << "received Json format payload : "
-              << parsedFromPayload.toStyledString() << std::endl;
-  }
+
   std::stringstream ss;
   if (json2Sql(ss, parsedFromPayload, util::ADD)) {
-    std::cout << "sql string to insert data : " << ss.str() << std::endl;
     // todo: before use, check if the connection is not NULL
     // we may need to use lock here to ensure thread safe
     operateDatabase(ss.str(), util::ADD);
@@ -614,7 +625,6 @@ PublishAdapter<DatabaseHandler>::processUpdateData(const ndn::shared_ptr<const n
   ss.str("");
   ss.clear();
   if (json2Sql(ss, parsedFromPayload, util::REMOVE)) {
-    std::cout << "sql string to remove data: " << ss.str() << std::endl;
     operateDatabase(ss.str(), util::REMOVE);
   }
 }
@@ -631,17 +641,17 @@ template <>
 chronosync::SeqNo
 PublishAdapter<MYSQL>::getLatestSeqNo(const chronosync::MissingDataInfo& update)
 {
+  _LOG_DEBUG(">> PublishAdapter::getLatestSeqNo");
+
   std::string sql = "SELECT seq_num FROM chronosync_update_info WHERE session_name = '"
     + update.session.toUri() + "';";
-#ifndef NDEBUG
-  std::cout << "get latest seqNo : " << sql << std::endl;
-#endif
+
   std::string errMsg;
   bool success;
   std::shared_ptr<MYSQL_RES> results
     = atmos::util::MySQLPerformQuery(m_databaseHandler, sql, util::QUERY, success, errMsg);
   if (!success) {
-    std::cout << errMsg << std::endl;
+    _LOG_DEBUG(errMsg);
     return 0; //database connection error?
   }
   else if (results != nullptr){
@@ -672,14 +682,14 @@ PublishAdapter<MYSQL>::renewUpdateInformation(const chronosync::MissingDataInfo&
   std::string sql = "UPDATE chronosync_update_info SET seq_num = "
     + boost::lexical_cast<std::string>(update.high)
     + " WHERE session_name = '" + update.session.toUri() + "';";
-  std::cout << "renew update Info : " << sql << std::endl;
+
   std::string errMsg;
   bool success = false;
   m_mutex.lock();
   util::MySQLPerformQuery(m_databaseHandler, sql, util::UPDATE, success, errMsg);
   m_mutex.unlock();
   if (!success)
-    std::cout << errMsg << std::endl;
+    _LOG_DEBUG(errMsg);
 }
 
 template <typename DatabaseHandler>
@@ -697,14 +707,13 @@ PublishAdapter<MYSQL>::addUpdateInformation(const chronosync::MissingDataInfo& u
     + update.session.toUri() + "', " + boost::lexical_cast<std::string>(update.high)
     + ");";
 
-  std::cout << "add update Info : " << sql << std::endl;
   std::string errMsg;
   bool success = false;
   m_mutex.lock();
   util::MySQLPerformQuery(m_databaseHandler, sql, util::ADD, success, errMsg);
   m_mutex.unlock();
   if (!success)
-    std::cout << errMsg << std::endl;
+    _LOG_DEBUG(errMsg);
 }
 
 template <typename DatabaseHandler>
@@ -712,6 +721,7 @@ void
 PublishAdapter<DatabaseHandler>::onFetchUpdateDataTimeout(const ndn::Interest& interest)
 {
   // todo: record event, and use recovery Interest to fetch the whole table
+  _LOG_DEBUG("UpdateData retrieval timed out: " << interest.getName());
 }
 
 template <typename DatabaseHandler>
@@ -719,6 +729,8 @@ void
 PublishAdapter<DatabaseHandler>::processSyncUpdate(const std::vector<chronosync::MissingDataInfo>&
                                                    updates)
 {
+  _LOG_DEBUG(">> PublishAdapter::processSyncUpdate");
+
   if (updates.empty()) {
     return;
   }
@@ -740,7 +752,9 @@ PublishAdapter<DatabaseHandler>::processSyncUpdate(const std::vector<chronosync:
                             bind(&PublishAdapter<DatabaseHandler>::onFetchUpdateDataTimeout,
                                  this, _1),
                             RETRY_WHEN_TIMEOUT);
-        std::cout << "send Interest for [" << updates[i].session << ":" << seq << "]" << std::endl;
+
+        _LOG_DEBUG("Interest for [" << updates[i].session << ":" << seq << "]");
+
         update = true;
       }
     }
@@ -772,7 +786,7 @@ PublishAdapter<MYSQL>::operateDatabase(const std::string& sql, util::DatabaseOpe
   atmos::util::MySQLPerformQuery(m_databaseHandler, sql, op, success, errMsg);
   m_mutex.unlock();
   if (!success)
-    std::cout << errMsg << std::endl;
+    _LOG_DEBUG(errMsg);
 }
 
 template<typename DatabaseHandler>
@@ -782,7 +796,6 @@ PublishAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlString,
                                           util::DatabaseOperation op)
 {
   if (jsonValue.type() != Json::objectValue) {
-    std::cout << jsonValue.toStyledString() << "is not json object" << std::endl;
     return false;
   }
   if (op == util::ADD) {
@@ -804,7 +817,7 @@ PublishAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlString,
       // cast might be overflowed
       Json::Value item = jsonValue["add"][static_cast<int>(i)];
       if (!item.isConvertibleTo(Json::stringValue)) {
-        std::cout << "malformed JsonQuery string : " << item.toStyledString() << std::endl;
+        _LOG_DEBUG("malformed JsonQuery string");
         return false;
       }
       std::string fileName(item.asString());
@@ -827,14 +840,14 @@ PublishAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlString,
     if (updateNumber <= 0)
       return false;
 
-    sqlString << "delete from " << m_databaseTable << " where name in (";
+    sqlString << "DELETE FROM " << m_databaseTable << " WHERE name IN (";
     for (size_t i = 0; i < updateNumber; ++i) {
       if (i > 0)
         sqlString << ",";
       // cast might be overflowed
       Json::Value item = jsonValue["remove"][static_cast<int>(i)];
       if (!item.isConvertibleTo(Json::stringValue)) {
-        std::cout << "malformed JsonQuery string : " << item.toStyledString() << std::endl;
+        _LOG_DEBUG("Malformed JsonQuery");
         return false;
       }
       std::string fileName(item.asString());
@@ -891,6 +904,8 @@ bool
 PublishAdapter<DatabaseHandler>::validatePublicationChanges(const
                                                             std::shared_ptr<const ndn::Data>& data)
 {
+  _LOG_DEBUG(">> PublishAdapter::validatePublicationChanges");
+
   // The data name must be "/<publisher-prefix>/<nonce>"
   // the prefix is the data name removes the last component
   ndn::Name publisherPrefix = data->getName().getPrefix(-1);
@@ -901,7 +916,7 @@ PublishAdapter<DatabaseHandler>::validatePublicationChanges(const
   Json::Reader reader;
   if (!reader.parse(payload, parsedFromString)) {
     // parse error, log events
-    std::cout << "Cannot parse the published data " << data->getName() << " into Json" << std::endl;
+    _LOG_DEBUG("Fail to parse the published Data" << data->getName());
     return false;
   }
 

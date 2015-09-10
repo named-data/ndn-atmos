@@ -51,8 +51,15 @@
 #include <array>
 #include <utility>
 
+#include "util/logger.hpp"
+
+
 namespace atmos {
 namespace query {
+#ifdef HAVE_LOG4CXX
+  INIT_LOGGER("QueryAdapter");
+#endif
+
 // todo: calculate payload limit by get the size of a signed empty Data packet
 static const size_t PAYLOAD_LIMIT = 7000;
 
@@ -455,17 +462,15 @@ void
 QueryAdapter<DatabaseHandler>::onQueryInterest(const ndn::InterestFilter& filter,
                                                const ndn::Interest& interest)
 {
-  // strictly enforce query initialization namespace.
-  // Name should be our local prefix + "query" + parameters
+  _LOG_DEBUG(">> QueryAdapter::onQueryInterest");
+
   if (interest.getName().size() != filter.getPrefix().size() + 1) {
     // @todo: return a nack
     return;
   }
   std::shared_ptr<const ndn::Interest> interestPtr = interest.shared_from_this();
 
-#ifndef NDEBUG
-  std::cout << "incoming query interest : " << interestPtr->getName() << std::endl;
-#endif
+  _LOG_DEBUG("Interest : " << interestPtr->getName());
 
   // @todo: use thread pool
   std::thread queryThread(&QueryAdapter<DatabaseHandler>::runJsonQuery,
@@ -484,14 +489,14 @@ QueryAdapter<DatabaseHandler>::onQueryResultsInterest(const ndn::InterestFilter&
   // now. In the future, this should check some form of
   // InMemoryStorage.
 
-#ifndef NDEBUG
-  std::cout << "incoming query-results interest : " << interest.toUri() << std::endl;
-#endif
+  _LOG_DEBUG(">> QueryAdapter::onQueryResultsInterest");
 
   auto data = m_cache.find(interest.getName());
   if (data) {
     m_face->put(*data);
   }
+
+  _LOG_DEBUG("<< QueryAdapter::onQueryResultsInterest");
 }
 
 template <typename DatabaseHandler>
@@ -499,11 +504,11 @@ void
 QueryAdapter<DatabaseHandler>::onFiltersInitializationInterest(const ndn::InterestFilter& filter,
                                                            const ndn::Interest& interest)
 {
+  _LOG_DEBUG(">> QueryAdapter::onFiltersInitializationInterest");
   std::shared_ptr<const ndn::Interest> interestPtr = interest.shared_from_this();
 
-#ifndef NDEBUG
-  std::cout << "incoming initialization interest : " << interestPtr->getName() << std::endl;
-#endif
+  _LOG_DEBUG("Interest : " << interestPtr->getName());
+
   // TODO: save the content in memory, first check the memory, if not exists, start thread to generate it
   // Note that if ChronoSync state changes, we need to clear the saved value, and regenerate it
 
@@ -517,12 +522,15 @@ QueryAdapter<DatabaseHandler>::onFiltersInitializationInterest(const ndn::Intere
                             interestPtr);
     queryThread.join();
   }
+
+  _LOG_DEBUG("<< QueryAdapter::onFiltersInitializationInterest");
 }
 
 template <typename DatabaseHandler>
 void
 QueryAdapter<DatabaseHandler>::populateFiltersMenu(std::shared_ptr<const ndn::Interest> interest)
 {
+  _LOG_DEBUG(">> QueryAdapter::populateFiltersMenu");
   Json::Value filters;
   Json::FastWriter fastWriter;
   getFiltersMenu(filters);
@@ -545,16 +553,16 @@ QueryAdapter<DatabaseHandler>::populateFiltersMenu(std::shared_ptr<const ndn::In
       filterData->setContent(reinterpret_cast<const uint8_t*>(payload + startIndex), payloadLength);
 
       signData(*filterData);
-#ifndef NDEBUG
-      std::cout << "populate filter Data : " << segmentName << std::endl;
-#endif
+
+      _LOG_DEBUG("Populate Filter Data :" << segmentName);
+
       m_mutex.lock();
       m_cache.insert(*filterData);
       try {
         m_face->put(*filterData);
       }// catch exceptions and log
       catch (std::exception& e) {
-        std::cout << e.what() << std::endl;
+        _LOG_DEBUG(e.what());
       }
       m_mutex.unlock();
 
@@ -575,6 +583,7 @@ QueryAdapter<DatabaseHandler>::populateFiltersMenu(std::shared_ptr<const ndn::In
     m_face->put(*filterData);
     m_mutex.unlock();
   }
+  _LOG_DEBUG("<< QueryAdapter::populateFiltersMenu");
 }
 
 template <typename DatabaseHandler>
@@ -589,6 +598,7 @@ template <>
 void
 QueryAdapter<MYSQL>::getFiltersMenu(Json::Value& value)
 {
+  _LOG_DEBUG(">> QueryAdapter::getFiltersMenu");
   Json::Value tmp;
 
   for (size_t i = 0; i < m_filterCategoryNames.size(); i++) {
@@ -602,7 +612,7 @@ QueryAdapter<MYSQL>::getFiltersMenu(Json::Value& value)
       = atmos::util::MySQLPerformQuery(m_databaseHandler, getFilterSql,
                                        util::QUERY, success, errMsg);
     if (!success) {
-      std::cout << errMsg << std::endl;
+      _LOG_DEBUG(errMsg);
       value.clear();
       return;
     }
@@ -615,9 +625,7 @@ QueryAdapter<MYSQL>::getFiltersMenu(Json::Value& value)
     tmp.clear();
   }
 
-#ifndef NDEBUG
-  std::cout << value.toStyledString() << std::endl;
-#endif
+  _LOG_DEBUG("<< QueryAdapter::getFiltersMenu");
 }
 
 template <typename DatabaseHandler>
@@ -663,7 +671,7 @@ QueryAdapter<DatabaseHandler>::makeAckData(std::shared_ptr<const ndn::Interest> 
 
   signData(*ack);
 #ifndef NDEBUG
-  std::cout << "qurey-results data name in ACK : " << queryResultNameStr << std::endl;
+  _LOG_DEBUG(queryResultNameStr);
 #endif
   return ack;
 }
@@ -681,7 +689,7 @@ QueryAdapter<DatabaseHandler>::sendNack(const ndn::Name& dataPrefix)
 
   signData(*nack);
 #ifndef NDEBUG
-  std::cout << "make NACK : " << ndn::Name(dataPrefix).appendSegment(segmentNo) << std::endl;
+  _LOG_DEBUG(ndn::Name(dataPrefix).appendSegment(segmentNo));
 #endif
   m_mutex.lock();
   m_cache.insert(*nack);
@@ -694,11 +702,11 @@ bool
 QueryAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlQuery,
                                         Json::Value& jsonValue)
 {
+  _LOG_DEBUG(">> QueryAdapter::json2Sql");
 #ifndef NDEBUG
-  std::cout << "jsonValue in json2Sql: " << jsonValue.toStyledString() << std::endl;
+  _LOG_DEBUG(jsonValue.toStyledString());
 #endif
   if (jsonValue.type() != Json::objectValue) {
-    std::cout << jsonValue.toStyledString() << "is not json object" << std::endl;
     return false;
   }
 
@@ -710,13 +718,13 @@ QueryAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlQuery,
     Json::Value value = (*iter);
 
     if (key == Json::nullValue || value == Json::nullValue) {
-      std::cout << "null key or value in JsonValue: " << jsonValue.toStyledString() << std::endl;
+      _LOG_DEBUG("null key or value in JsonValue");
       return false;
     }
 
     // cannot convert to string
     if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
-      std::cout << "malformed JsonQuery string : " << jsonValue.toStyledString() << std::endl;
+      _LOG_DEBUG("malformed JsonQuery string");
       return false;
     }
 
@@ -747,11 +755,11 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
                                                       Json::Value& jsonValue,
                                                       bool& lastComponent)
 {
+  _LOG_DEBUG(">> QueryAdapter::json2AutocompletionSql");
 #ifndef NDEBUG
-  std::cout << "jsonValue in json2AutocompletionSql: " << jsonValue.toStyledString() << std::endl;
+  _LOG_DEBUG(jsonValue.toStyledString());
 #endif
   if (jsonValue.type() != Json::objectValue) {
-    std::cout << jsonValue.toStyledString() << "is not json object" << std::endl;
     return false;
   }
 
@@ -763,13 +771,13 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
     Json::Value value = (*iter);
 
     if (key == Json::nullValue || value == Json::nullValue) {
-      std::cout << "null key or value in JsonValue: " << jsonValue.toStyledString() << std::endl;
+      _LOG_DEBUG("null key or value in JsonValue");
       return false;
     }
 
     // cannot convert to string
     if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
-      std::cout << "malformed JsonQuery string : " << jsonValue.toStyledString() << std::endl;
+      _LOG_DEBUG("malformed JsonQuery string");
       return false;
     }
 
@@ -829,11 +837,11 @@ bool
 QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQuery,
                                                          Json::Value& jsonValue)
 {
+  _LOG_DEBUG(">> QueryAdapter::json2CompleteSearchSql");
 #ifndef NDEBUG
-  std::cout << "jsonValue in json2PrefixBasedSearchSql: " << jsonValue.toStyledString() << std::endl;
+  _LOG_DEBUG(jsonValue.toStyledString());
 #endif
   if (jsonValue.type() != Json::objectValue) {
-    std::cout << jsonValue.toStyledString() << "is not json object" << std::endl;
     return false;
   }
 
@@ -845,13 +853,13 @@ QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQ
     Json::Value value = (*iter);
 
     if (key == Json::nullValue || value == Json::nullValue) {
-      std::cout << "null key or value in JsonValue: " << jsonValue.toStyledString() << std::endl;
+      _LOG_DEBUG("null key or value in JsonValue");
       return false;
     }
 
     // cannot convert to string
     if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
-      std::cout << "malformed JsonQuery string : " << jsonValue.toStyledString() << std::endl;
+      _LOG_DEBUG("malformed JsonQuery string");
       return false;
     }
 
@@ -913,6 +921,8 @@ template <typename DatabaseHandler>
 void
 QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest> interest)
 {
+  _LOG_DEBUG(">> QueryAdapter::runJsonQuery");
+
   // 1) Strip the prefix off the ndn::Interest's ndn::Name
   // +1 to grab JSON component after "query" component
 
@@ -947,7 +957,7 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
   Json::Reader reader;
   if (!reader.parse(jsonQuery, parsedFromString)) {
     // @todo: send NACK?
-    std::cout << "cannot parse the JsonQuery" << std::endl;
+    _LOG_DEBUG("cannot parse the JsonQuery");
     return;
   }
 
@@ -1027,8 +1037,9 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
                                      bool autocomplete,
                                      bool lastComponent)
 {
+  _LOG_DEBUG(">> QueryAdapter::prepareSegments");
 #ifndef NDEBUG
-  std::cout << "prepareSegments() executes sql : " << sqlString << std::endl;
+  _LOG_DEBUG(sqlString);
 #endif
   std::string errMsg;
   bool success;
@@ -1036,10 +1047,10 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
   std::shared_ptr<MYSQL_RES> results
     = atmos::util::MySQLPerformQuery(m_databaseHandler, sqlString, util::QUERY, success, errMsg);
   if (!success)
-    std::cout << errMsg << std::endl;
+    _LOG_DEBUG(errMsg);
 
   if (!results) {
-    std::cout << "null MYSQL_RES for query : " << sqlString << std::endl;
+    _LOG_DEBUG("NULL MYSQL_RES for" << sqlString);
 
     // @todo: throw runtime error or log the error message?
     return;
@@ -1048,11 +1059,7 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
   uint64_t resultCount = mysql_num_rows(results.get());
 
 #ifndef NDEBUG
-  std::cout << "Query results for \""
-            << sqlString
-            << "\" contain "
-            << resultCount
-            << " rows" << std::endl;
+  _LOG_DEBUG("Query resuls contain " << resultCount << "rows");
 #endif
 
   MYSQL_ROW row;
@@ -1113,9 +1120,9 @@ QueryAdapter<DatabaseHandler>::makeReplyData(const ndn::Name& segmentPrefix,
     entry["lastComponent"] = Json::Value(true);
 
 #ifndef NDEBUG
-  std::cout << "resultCount " << resultCount
-            << "; viewStart " << viewStart
-            << "; viewEnd "   << viewEnd << std::endl;
+  _LOG_DEBUG("resultCount " << resultCount << ";"
+             << "viewStart " << viewStart << ";"
+             << "viewEnd " << viewEnd);
 #endif
 
   if (isAutocomplete) {
@@ -1137,7 +1144,7 @@ QueryAdapter<DatabaseHandler>::makeReplyData(const ndn::Name& segmentPrefix,
     data->setFinalBlockId(ndn::Name::Component::fromSegment(segmentNo));
   }
 #ifndef NDEBUG
-  std::cout << "makeReplyData : " << segmentName << std::endl;
+  _LOG_DEBUG(segmentName);
 #endif
   signData(*data);
   return data;

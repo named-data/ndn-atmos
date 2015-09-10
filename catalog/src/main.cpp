@@ -25,12 +25,15 @@
 #include <getopt.h>
 #include <ndn-cxx/face.hpp>
 
+#ifdef HAVE_LOG4CXX
+  INIT_LOGGER("atmos-catalog::Main");
+#endif
 
 void
 usage()
 {
   std::cout << "\n Usage:\n atmos-catalog "
-    "[-h] [-f config file] "
+    "[-h] [-f config file] \n"
     "   [-f config file]    - set the configuration file\n"
     "   [-h]                - print help and exit\n"
     "\n";
@@ -41,6 +44,10 @@ main(int argc, char** argv)
 {
   int option;
   std::string configFile(DEFAULT_CONFIG_FILE);
+
+#ifdef HAVE_LOG4CXX
+  log4cxx::PropertyConfigurator::configure(LOG4CXX_CONFIG_FILE);
+#endif
 
   while ((option = getopt(argc, argv, "f:h")) != -1) {
     switch (option) {
@@ -73,8 +80,23 @@ main(int argc, char** argv)
   catalogInstance.addAdapter(queryAdapter);
   catalogInstance.addAdapter(publishAdapter);
 
-  catalogInstance.initialize();
-  face->processEvents();
+  try {
+    catalogInstance.initialize();
+  }
+  catch (std::exception& e) {
+    std::cout << e.what() << std::endl;
+  }
+
+#ifndef NDEBUG
+  try {
+#endif
+    face->processEvents();
+#ifndef NDEBUG
+  }
+  catch (std::exception& e) {
+    _LOG_DEBUG(e.what());
+  }
+#endif
 
   return 0;
 }

@@ -280,7 +280,7 @@ model, experiment, frequency, modeling_realm, variable_name, ensemble, time) VAL
 
     ss.str("");
     ss.clear();
-    std::string expectRes2 = "delete from cmip5 where name in ('ndn:/1/2/3/4/5/6/7/8/9/10',\
+    std::string expectRes2 = "DELETE FROM cmip5 WHERE name IN ('ndn:/1/2/3/4/5/6/7/8/9/10',\
 '/a/b/c/d','/test/for/remove');";
     BOOST_CHECK_EQUAL(publishAdapterTest1.testJson2Sql(ss, testJson, util::REMOVE), true);
     BOOST_CHECK_EQUAL(ss.str(), expectRes2);

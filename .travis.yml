@@ -9,8 +9,8 @@ notifications:
   email:
     on_success: always
     on_failure: always
-env:
-  global:
-    - NODE_LABELS="Linux Ubuntu Ubuntu-12.04 Ubuntu-12.04-64bit Boost1.48"
 script:
+  - if [[ $TRAVIS_OS_NAME == linux ]]; then export NODE_LABELS="Linux Ubuntu Ubuntu-12.04"; fi
+  - if [[ $TRAVIS_OS_NAME == osx ]]; then export NODE_LABELS="OSX OSX-10.10"; fi
+  - echo $NODE_LABELS
   - ./.jenkins
