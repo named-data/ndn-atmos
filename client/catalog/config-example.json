@@ -1,7 +1,0 @@
-{
-	"catalogPrefix": "/catalog/myUniqueName",
-	"faceConfig": {
-		"host": "atmos-csu.research-lan.colostate.edu",
-		"port": 9696
-	}
-}

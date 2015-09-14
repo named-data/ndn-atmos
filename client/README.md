@@ -32,4 +32,3 @@ Currently the theme is a modified bootstrap theme that is running larger fonts a
 If you would like to modify the theme go to [this url](http://bootstrap-live-customizer.com/). To modify the current theme, then upload the variables.less in this folder, make your modifications, and overwrite the variables.less file when you are done (and the theme.min.css).
 
 
-

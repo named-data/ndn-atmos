@@ -16,6 +16,7 @@
 </script>
 
 <!-- Styles -->
+<link rel="stylesheet" href="css/cubeLoader.css">
 <link rel="stylesheet" href="css/theme.min.css">
 <link rel="stylesheet" href="css/style.css">
 
@@ -92,7 +93,7 @@
 
         <div id="results" class="panel panel-default hidden">
           <div class="panel-body">
-            <nav class="navbar navbar-inverse col-md-12 resultMenu hidden">
+            <nav class="navbar navbar-inverse col-md-12 resultMenu">
               <ul class="nav navbar-nav navbar-left">
                 <li class="previous disabled">
                   <a href="#">&larr; Previous</a>
@@ -116,7 +117,18 @@
               </ul>
             </nav>
             <table id="resultTable" class="table"></table>
-            <nav class="navbar navbar-inverse col-md-12 resultMenu hidden">
+            <div class="sk-cube-grid">
+              <div class="sk-cube sk-cube1"></div>
+              <div class="sk-cube sk-cube2"></div>
+              <div class="sk-cube sk-cube3"></div>
+              <div class="sk-cube sk-cube4"></div>
+              <div class="sk-cube sk-cube5"></div>
+              <div class="sk-cube sk-cube6"></div>
+              <div class="sk-cube sk-cube7"></div>
+              <div class="sk-cube sk-cube8"></div>
+              <div class="sk-cube sk-cube9"></div>
+            </div>
+            <nav class="navbar navbar-inverse col-md-12 resultMenu">
               <ul class="nav navbar-nav navbar-left">
                 <li class="previous disabled">
                   <a href="#">&larr; Previous</a>
@@ -146,6 +158,36 @@
 
     </div>
 
+  </div>
+
+  <div id="popup">
+    <div id="request" class="panel panel-primary">
+      <div class="panel-heading">Confirmation</div>
+      <div class="panel-body">
+        <form id="requestForm">
+          <p>Select a destination and press submit if you are sure you want to download the selected data to the selected destination.</p>
+          <div class="dropdown">
+            <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
+              Destination
+              <span class="caret"></span>
+            </button>
+            <ul id="requestDest" class="dropdown-menu"></ul>
+          </div>
+          <!-- Disabled For Demo
+          <div class="form-group">
+            <label>Authentication Key</label>
+            <input type="file" class="form-control" placeholder="JSON encoded RSA key">
+            <p class="help-block">It is required that you have authentication to move the files, otherwise this will fail.</p>
+          </div>
+          <div id="requestDrop" class="well">You can also drop your key here instead of using the input above.</div>
+          -->
+          <div class="absBotRight">
+            <button type="submit" class="btn btn-primary">Submit</button>
+            <button id="requestCancel" type="button" class="btn btn-default">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 
 </body>

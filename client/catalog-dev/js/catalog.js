@@ -1,16 +1,16 @@
 //Run when the document loads AND we have the config loaded.
 (function(){
-  var catalog = null;
-  var config = null;
+  "use strict";
+  var config;
   Promise.all([
     new Promise(function(resolve, reject){
       $.ajax('config.json').done(function(data){
-        catalog = data.catalogPrefix;
-        config = data.faceConfig;
+        config = data;
         resolve();
       }).fail(function(){
         console.error("Failed to get config.");
-        reject()
+        ga('send', 'event', 'error', 'config');
+        reject();
       });
     }),
     new Promise(function(resolve, reject){
@@ -24,14 +24,28 @@
       });
     })
   ]).then(function(){
-    new Atmos(catalog, config);
+    new Atmos(config);
   }, function(){
     console.error("Failed to initialize!");
-  })
+    ga('send', 'event', 'error', 'init');
+  });
 })();
 
 var Atmos = (function(){
   "use strict";
+
+  var closeButton = '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
+
+  var guid = function(){
+    var d = new Date().getTime();
+    var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = (d + Math.random()*16)%16 | 0;
+      d = Math.floor(d/16);
+      return (c=='x' ? r : (r&0x3|0x8)).toString(16);
+    });
+    return uuid;
+  }
+
   /**
    * Atmos
    * @version 2.0
@@ -42,7 +56,7 @@ var Atmos = (function(){
    * @param {string} catalog - NDN path
    * @param {Object} config - Object of configuration options for a Face.
    */
-  function Atmos(catalog, config){
+  var Atmos = function(config){
 
     //Internal variables.
     this.results = [];
@@ -52,10 +66,14 @@ var Atmos = (function(){
     this.resultsPerPage = 25;
     this.retrievedSegments = 0;
 
-    this.catalog = catalog;
+    //Config/init
+    this.config = config;
 
-    this.face = new Face(config);
+    this.catalog = config['global']['catalogPrefix'];
 
+    this.face = new Face(config['global']['faceConfig']);
+
+    //Easy access dom variables
     this.categories = $('#side-menu');
     this.resultTable = $('#resultTable');
     this.filters = $('#filters');
@@ -64,23 +82,20 @@ var Atmos = (function(){
     this.searchButton = $('#searchButton');
     this.resultMenu = $('.resultMenu');
     this.alerts = $('#alerts');
+    this.requestForm = $('#requestForm');
 
     var scope = this;
 
-    this.resultTable.on('click', '.interest-button', function(){
-      scope.request(this);
-    });
-
     $('.requestSelectedButton').click(function(){
-      scope.request(
-        scope.resultTable.find('.resultSelector:checked:not([disabled])')
-        .parent().next().find('.interest-button')
-      );
+      ga('send', 'event', 'button', 'click', 'request');
+      scope.request(scope.resultTable.find('.resultSelector:checked:not([disabled])').parent().parent());
     });
 
     this.filterSetup();
 
+    //Init autocomplete
     this.searchInput.autoComplete(function(field, callback){
+      ga('send', 'event', 'search', 'autocomplete');
       scope.autoComplete(field, function(list){
         callback(list.map(function(element){
           return field + element + "/";
@@ -88,7 +103,9 @@ var Atmos = (function(){
       });
     });
 
+    //Handle search
     this.searchBar.submit(function(e){
+      ga('send', 'event', 'search', 'submit');
       e.preventDefault();
       if (scope.searchInput.val().length === 0){
         if (!scope.searchBar.hasClass('has-error')){
@@ -103,20 +120,25 @@ var Atmos = (function(){
 
     this.searchButton.click(function(){
       console.log("Search Button Pressed");
+      ga('send', 'event', 'button', 'click', 'search');
       scope.search();
     });
 
+    //Result navigation handlers
     this.resultMenu.find('.next').click(function(){
+      ga('send', 'event', 'button', 'click', 'next');
       if (!$(this).hasClass('disabled')){
         scope.getResults(scope.page + 1);
       }
     });
     this.resultMenu.find('.previous').click(function(){
+      ga('send', 'event', 'button', 'click', 'previous');
       if (!$(this).hasClass('disabled')){
         scope.getResults(scope.page - 1);
       }
     });
 
+    //Change the number of results per page handler
     var rpps = $('.resultsPerPageSelector').click(function(){
 
       var t = $(this);
@@ -132,8 +154,10 @@ var Atmos = (function(){
 
     });
 
+    //Init tree search
     $('#treeSearch div').treeExplorer(function(path, callback){
       console.log("Tree Explorer request", path);
+      ga('send', 'event', 'tree', 'request');
       scope.autoComplete(path, function(list){
         console.log("Autocomplete response", list);
         callback(list.map(function(element){
@@ -141,6 +165,8 @@ var Atmos = (function(){
         }));
       })
     });
+
+    this.setupRequestForm();
 
   }
 
@@ -238,10 +264,6 @@ var Atmos = (function(){
 
   Atmos.prototype.showResults = function(resultIndex) {
 
-    if ($('#results').hasClass('hidden')){
-      $('#results').removeClass('hidden').slideDown();
-    }
-
     var results = this.results.slice(this.resultsPerPage * resultIndex, this.resultsPerPage * (resultIndex + 1));
 
     var resultDOM = $(
@@ -261,13 +283,10 @@ var Atmos = (function(){
       }
     });
 
-    this.resultTable.empty().append(resultDOM).slideDown();
-    if (this.resultMenu.hasClass('hidden')){
-      this.resultMenu.removeClass('hidden').slideDown();
-    }
+    this.resultTable.hide().empty().append(resultDOM).slideDown('slow');
 
     this.resultMenu.find('.pageNumber').text(resultIndex + 1);
-    this.resultMenu.find('.pageLength').text(this.resultsPerPage * (resultIndex + 1));
+    this.resultMenu.find('.pageLength').text(this.resultsPerPage * resultIndex + results.length);
 
     if (this.resultsPerPage * (resultIndex + 1) >= this.resultCount) {
       this.resultMenu.find('.next').addClass('disabled');
@@ -284,6 +303,10 @@ var Atmos = (function(){
   }
 
   Atmos.prototype.getResults = function(index){
+
+    if ($('#results').hasClass('hidden')){
+      $('#results').removeClass('hidden').slideDown();
+    }
 
     if ((this.results.length === this.resultCount) || (this.resultsPerPage * (index + 1) < this.results.length)){
       //console.log("We already have index", index);
@@ -313,6 +336,7 @@ var Atmos = (function(){
         if (data.getContent().length === 0){
           scope.resultMenu.find('.totalResults').text(0);
           scope.resultMenu.find('.pageNumber').text(0);
+          scope.resultMenu.find('.pageLength').text(0);
           console.log("Empty response.");
           return;
         }
@@ -322,6 +346,7 @@ var Atmos = (function(){
         if (!content.results){
           scope.resultMenu.find('.totalResults').text(0);
           scope.resultMenu.find('.pageNumber').text(0);
+          scope.resultMenu.find('.pageLength').text(0);
           console.log("No results were found!");
           return;
         }
@@ -386,7 +411,7 @@ var Atmos = (function(){
     var alert = $('<div class="alert"><div>');
     alert.addClass(type?type:'alert-info');
     alert.text(message);
-    alert.append(Atmos.closeButton);
+    alert.append(closeButton);
 
     this.alerts.append(alert);
   }
@@ -394,30 +419,125 @@ var Atmos = (function(){
   /**
    * Requests all of the names represented by the buttons in the elements list.
    *
-   * @param elements {Array<jQuery>} A list of the interestButton elements
+   * @param elements {Array<jQuery>} A list of the table row elements
    */
-  Atmos.prototype.request = function(elements){
+  Atmos.prototype.request = function(){
 
-    var scope = this;
-    $(elements).filter(':not(.disabled)').each(function(){
-      var button = $(this);
+    //Pseudo globals.
+    var keyChain;
+    var certificateName;
+    var keyAdded = false;
 
-      if (button.hasClass('disabled')){
-        console.warn("An attempt to request a disabled element has occured");
-        return;
-      }
+    return function(elements){
 
-      var name = button.text();
-      var interest = new Interest(new Name('/retrieve' + name));
-      scope.face.expressInterest(interest, function(){}, function(){});
+      var names = [];
+      var destination = $('#requestDest .active').text();
+      $(elements).find('>*:nth-child(2)').each(function(){
+        var name = $(this).text();
+        names.push(name);
+      });//.append('<span class="badge">Requested!</span>')
+      //Disabling the checkbox doesn't make sense anymore with the ability to request to multiple destinations.
+      //$(elements).find('.resultSelector').prop('disabled', true).prop('checked', false);
 
-    })
-    .append('<span class="badge">Requested!</span>')
-    .addClass('disabled')
-    .addClass('label-success')
-    .parent().prev().find('.resultSelector').prop('disabled', true).prop('checked', false);
+      var scope = this;
+      this.requestForm.on('submit', function(e){ //This will be registered for the next submit from the form.
+        e.preventDefault();
 
-  }
+        //Form checking
+        var dest = scope.requestForm.find('#requestDest .active');
+        if (dest.length !== 1){
+          $('#requestForm').append($('<div class="alert alert-warning">A destination is required!' + closeButton + '<div>'));
+          return;
+        }
+
+        $('#request').modal('hide')//Initial params are ok. We can close the form.
+        .remove('.alert') //Remove any alerts
+        .find('.active').removeClass('active'); //Disable the active destination
+
+        $(this).off(e); //Don't fire this again, the request must be regenerated
+
+        //Key setup
+        if (!keyAdded){
+          if (!scope.config.retrieval.demoKey || !scope.config.retrieval.demoKey.pub || !scope.config.retrieval.demoKey.priv){
+            scope.createAlert("This host was not configured to handle retrieval! See console for details.", 'alert-danger');
+            console.error("Missing/invalid key! This must be configured in the config on the server.", scope.config.demoKey);
+            return;
+          }
+
+          //FIXME base64 may or may not exist in other browsers. Need a new polyfill.
+          var pub = new Buffer(base64.toByteArray(scope.config.retrieval.demoKey.pub)); //MUST be a Buffer (Buffer != Uint8Array)
+          var priv = new Buffer(base64.toByteArray(scope.config.retrieval.demoKey.priv));
+
+          var identityStorage = new MemoryIdentityStorage();
+          var privateKeyStorage = new MemoryPrivateKeyStorage();
+          keyChain = new KeyChain(new IdentityManager(identityStorage, privateKeyStorage),
+                        new SelfVerifyPolicyManager(identityStorage));
+
+          var keyName = new Name("/retrieve/DSK-123");
+          certificateName = keyName.getSubName(0, keyName.size() - 1)
+            .append("KEY").append(keyName.get(-1))
+            .append("ID-CERT").append("0");
+
+          identityStorage.addKey(keyName, KeyType.RSA, new Blob(pub, false));
+          privateKeyStorage.setKeyPairForKeyName(keyName, KeyType.RSA, pub, priv);
+
+          scope.face.setCommandSigningInfo(keyChain, certificateName);
+
+          keyAdded = true;
+
+        }
+
+        //Retrieval
+        var retrievePrefix = new Name("/catalog/ui/" + guid());
+
+        //Due to a lack of success callback in the register prefix function, we have to pretend we
+        //know it succeeded with an arbitrary timeout.
+        var sendTimer = setTimeout(function(){
+          var prefix = new Name(dest.text());
+          prefix.append(retrievePrefix);
+          var interest = new Interest(prefix);
+          interest.setInterestLifetimeMilliseconds(3000);
+          scope.face.expressInterest(interest,
+            function(interest, data){ //Success
+              console.log("Request for", prefix.toUri(), "succeeded.", interest, data);
+            }, function(interest){ //Failure
+              console.error("Failure to request", prefix.toUri(), interest);
+              scope.createAlert("Failed to request " + prefix.toUri() + ". This means that the retrieve failed! See console for more details.");
+            }
+          );
+        }, 10000); //Wait 10 seconds
+
+        scope.face.registerPrefix(retrievePrefix,
+          function(prefix, interest, face, interestFilterId, filter){ //On Interest
+            //This function will exist until the page exits but will likely only be used once.
+
+            var data = new Data(interest.getName());
+            var content = JSON.stringify(names);
+            data.setContent(content);
+            keyChain.sign(data, certificateName);
+
+            try {
+              face.putData(data);
+              console.log("Responded for", interest.getName().toUri(), data);
+              scope.createAlert("Data retrieval has initiated.", "alert-success");
+            } catch (e) {
+              console.error("Failed to respond to", interest.getName().toUri(), data);
+              scope.createAlert("Data retrieval failed.");
+            }
+
+          }, function(prefix){ //On fail
+            clearTimeout(sendTimer); //Cancel the earlier request timer
+            scope.createAlert("Failed to register the retrieval URI! See console for details.", "alert-danger");
+            console.error("Failed to register URI:", prefix.toUri(), prefix);
+
+          }
+        );
+
+      });
+      $('#request').modal(); //This forces the form to be the only option.
+
+    }
+  }();
 
   Atmos.prototype.filterSetup = function() {
     //Filter setup
@@ -434,7 +554,7 @@ var Atmos = (function(){
       $.each(raw, function(index, object){ //Unpack list of objects
         $.each(object, function(category, searchOptions) { //Unpack category from object (We don't know what it is called)
           //Create the category
-          var e = $('<li><a href="#">' + category.replace(/\_/g, " ") + '</a><ul class="subnav nav nav-pills nav-stacked"></ul></li>');
+          var e = $('<li><a href="#">' + category.replace(/_/g, " ") + '</a><ul class="subnav nav nav-pills nav-stacked"></ul></li>');
 
           var sub = e.find('ul.subnav');
           $.each(searchOptions, function(index, name){
@@ -480,10 +600,15 @@ var Atmos = (function(){
     }, function(interest){ //Timeout
       scope.createAlert("Failed to initialize the filters!", "alert-danger");
       console.error("Failed to initialize filters!", interest);
+      ga('send', 'event', 'error', 'filters');
     });
 
   }
 
+  /**
+   * This function retrieves all segments in order until it knows it has reached the last one.
+   * It then returns the final joined result.
+   */
   Atmos.prototype.getAll = function(prefix, callback, timeout){
 
     var scope = this;
@@ -517,10 +642,72 @@ var Atmos = (function(){
 
     request(0);
 
-
   }
 
-  Atmos.closeButton = '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
+  Atmos.prototype.setupRequestForm = function(){
+    this.requestForm.find('#requestCancel').click(function(){
+      $('#request').unbind('submit') //Removes all event handlers.
+      .modal('hide'); //Hides the form.
+    });
+
+    var dests = $(this.config['retrieval']['destinations'].reduce(function(prev, current){
+      prev.push('<li><a href="#">');
+      prev.push(current);
+      prev.push("</a></li>");
+      return prev;
+    }, []).join(""));
+
+    this.requestForm.find('#requestDest').append(dests)
+    .on('click', 'a', function(e){
+      $('#requestDest .active').removeClass('active');
+      $(this).parent().addClass('active');
+    });
+
+    //This code will remain unused until users must use their own keys instead of the demo key.
+//    var scope = this;
+
+//    var warning = '<div class="alert alert-warning">' + closeButton + '<div>';
+
+//    var handleFile = function(e){
+//      var t = $(this);
+//      if (e.target.files.length > 1){
+//        var el = $(warning);
+//        t.append(el.append("We are looking for a single file, we will try the first only!"));
+//      } else if (e.target.files.length === 0) {
+//        var el = $(warning.replace("alert-warning", "alert-danger"));
+//        t.append(el.append("No file was supplied!"));
+//        return;
+//      }
+
+//      var reader = new FileReader();
+//      reader.onload = function(e){
+//        var key;
+//        try {
+//          key = JSON.parse(e.target.result);
+//        } catch (e) {
+//          console.error("Could not parse the key! (", key, ")");
+//          var el = $(warning.replace("alert-warning", "alert-danger"));
+//          t.append(el.append("Failed to parse the key file, is it a valid json key?"));
+//        }
+
+//        if (!key.DEFAULT_RSA_PUBLIC_KEY_DER || !key.DEFAULT_RSA_PRIVATE_KEY_DER) {
+//          console.warn("Invalid key", key);
+//          var el = $(warning.replace("alert-warning", "alert-danger"));
+//          t.append(el.append("Failed to parse the key file, it is missing required attributes."));
+//        }
+
+
+//      };
+
+//    }
+
+//    this.requestForm.find('#requestDrop').on('dragover', function(e){
+//      e.dataTransfer.dropEffect = 'copy';
+//    }).on('drop', handleFile);
+
+//    this.requestForm.find('input[type=file]').change(handleFile);
+
+  }
 
   return Atmos;
 

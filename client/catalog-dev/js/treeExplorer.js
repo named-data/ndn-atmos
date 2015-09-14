@@ -2,8 +2,8 @@
 (function(){
   "use strict";
   jQuery.fn.extend({
-    treeExplorer: function(getChildren){
 
+    treeExplorer: function(getChildren){
       var cache = {}; //Cache previously requested paths.
 
       var tree = $('<div class="treeExplorer"></div>');
