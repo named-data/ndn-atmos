@@ -17,7 +17,11 @@
   }
   jQuery.fn.extend({
     /**
-     * @param {Array<String>|getSuggestions}
+     * This setups up the default autocomplete functionality on an object.
+     * Using either a list of options or supplying a function that returns them,
+     * auto complete will create a menu for users to navigate and select a
+     * valid option.
+     * @param {Array<String>|function(String, function(Array<String>))} suggestions
      */
     autoComplete: function(suggestions) {
 
@@ -174,8 +178,3 @@
   });
 })();
 
-/**
- * @callback getSuggestions
- * @param {string} current - The current value of the input field.
- * @param {function}
- */
