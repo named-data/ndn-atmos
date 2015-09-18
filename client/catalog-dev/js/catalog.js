@@ -158,12 +158,38 @@ var Atmos = (function(){
     $('#treeSearch div').treeExplorer(function(path, callback){
       console.log("Tree Explorer request", path);
       ga('send', 'event', 'tree', 'request');
-      scope.autoComplete(path, function(list){
+      scope.autoComplete(path, function(data){
+        var list = data.next;
+        var last = (data.lastComponent === true);
         console.log("Autocomplete response", list);
         callback(list.map(function(element){
-          return (path == "/"?"/":"") + element + "/";
+          return (path == "/"?"/":"") + element + (!last?"/":"");
         }));
       })
+    });
+
+    $('#treeSearch').on('click', '.treeSearch', function(){
+      var t = $(this);
+
+      scope.clearResults();
+
+      var path = t.parent().parent().attr('id');
+
+      console.log("Stringing tree search:", path);
+
+      scope.query(scope.catalog, {'??': path},
+      function(interest, data){ //Success
+        console.log("Tree search response", interest, data);
+
+        scope.name = data.getContent().toString().replace(/[\n\0]+/g,'');
+
+        scope.getResults(0);
+      },
+      function(interest){ //Failure
+        console.warn("Request failed! Timeout", interest);
+        scope.createAlert("Request timed out.\""+ interest.getName().toUri() + "\" See console for details.");
+      });
+
     });
 
     this.setupRequestForm();
@@ -245,7 +271,7 @@ var Atmos = (function(){
       function(interest, data){
 
         if (data.getContent().length !== 0){
-          callback(JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")).next);
+          callback(JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")));
         } else {
           callback([]);
         }
@@ -307,6 +333,8 @@ var Atmos = (function(){
     if ($('#results').hasClass('hidden')){
       $('#results').removeClass('hidden').slideDown();
     }
+
+    $.scrollTo("#results", 700);
 
     if ((this.results.length === this.resultCount) || (this.resultsPerPage * (index + 1) < this.results.length)){
       //console.log("We already have index", index);
@@ -452,7 +480,8 @@ var Atmos = (function(){
 
         $('#request').modal('hide')//Initial params are ok. We can close the form.
         .remove('.alert') //Remove any alerts
-        .find('.active').removeClass('active'); //Disable the active destination
+
+        scope.cleanRequestForm();
 
         $(this).off(e); //Don't fire this again, the request must be regenerated
 
@@ -500,12 +529,13 @@ var Atmos = (function(){
           scope.face.expressInterest(interest,
             function(interest, data){ //Success
               console.log("Request for", prefix.toUri(), "succeeded.", interest, data);
+              scope.createAlert("Data retrieval has initiated.", "alert-success");
             }, function(interest){ //Failure
-              console.error("Failure to request", prefix.toUri(), interest);
-              scope.createAlert("Failed to request " + prefix.toUri() + ". This means that the retrieve failed! See console for more details.");
+              console.error("Request for", prefix.toUri(), "timed out.", interest);
+              scope.createAlert("Request for " + prefix.toUri() + " timed out. This means that the retrieve failed! See console for more details.");
             }
           );
-        }, 10000); //Wait 10 seconds
+        }, 5000); //Wait 5 seconds
 
         scope.face.registerPrefix(retrievePrefix,
           function(prefix, interest, face, interestFilterId, filter){ //On Interest
@@ -519,7 +549,6 @@ var Atmos = (function(){
             try {
               face.putData(data);
               console.log("Responded for", interest.getName().toUri(), data);
-              scope.createAlert("Data retrieval has initiated.", "alert-success");
             } catch (e) {
               console.error("Failed to respond to", interest.getName().toUri(), data);
               scope.createAlert("Data retrieval failed.");
@@ -644,10 +673,20 @@ var Atmos = (function(){
 
   }
 
+  Atmos.prototype.cleanRequestForm = function(){
+    $('#requestDest').prev().removeClass('btn-success').addClass('btn-default');
+    $('#requestDropText').text('Destination');
+    $('#requestDest .active').removeClass('active');
+  }
+
   Atmos.prototype.setupRequestForm = function(){
+
+    var scope = this;
+
     this.requestForm.find('#requestCancel').click(function(){
       $('#request').unbind('submit') //Removes all event handlers.
       .modal('hide'); //Hides the form.
+      scope.cleanRequestForm();
     });
 
     var dests = $(this.config['retrieval']['destinations'].reduce(function(prev, current){
@@ -660,7 +699,10 @@ var Atmos = (function(){
     this.requestForm.find('#requestDest').append(dests)
     .on('click', 'a', function(e){
       $('#requestDest .active').removeClass('active');
-      $(this).parent().addClass('active');
+      var t = $(this);
+      t.parent().addClass('active');
+      $('#requestDropText').text(t.text());
+      $('#requestDest').prev().removeClass('btn-default').addClass('btn-success');
     });
 
     //This code will remain unused until users must use their own keys instead of the demo key.

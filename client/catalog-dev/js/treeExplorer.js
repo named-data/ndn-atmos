@@ -27,7 +27,8 @@
           var el = $('<div class="treeExplorerNode"></div>');
           if (current.match(/\/$/)){
             el.attr('id', path + current);
-            el.append(['<a href="#' , path , current , '">' , current , '</a>'].join(""));
+            el.append(['<div class="nodeContent"><a href="#', path, current, '">', current,
+              '</a>&nbsp;<button class="treeSearch btn btn-success btn-xs">Search from here</button></div>'].join(""));
           } else {
             el.addClass('file');
             el.text(current);
@@ -36,8 +37,8 @@
         });
       }
 
-      tree.on('click', '.treeExplorerNode > a', function(){
-        var node = $(this).parent();
+      tree.on('click', '.treeExplorerNode > .nodeContent > a', function(){
+        var node = $(this).parent().parent();
 
         if (node.hasClass('open')){ //Are we open already?
           node.removeClass('open');

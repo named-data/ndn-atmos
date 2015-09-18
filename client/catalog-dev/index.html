@@ -22,6 +22,7 @@
 
 <!-- Scripts -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-scrollTo/2.1.0/jquery.scrollTo.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
 <script src="../ndn-js/build/ndn.min.js"></script>
 <script src="js/autocomplete.js"></script>
@@ -168,7 +169,7 @@
           <p>Select a destination and press submit if you are sure you want to download the selected data to the selected destination.</p>
           <div class="dropdown">
             <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
-              Destination
+              <span id="requestDropText">Destination<span>
               <span class="caret"></span>
             </button>
             <ul id="requestDest" class="dropdown-menu"></ul>

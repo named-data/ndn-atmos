@@ -142,6 +142,10 @@ body#body {}
   cursor: pointer;
 }
 
+.treeExplorer .treeExplorerNode .nodeContent {
+  display: inline-block;
+}
+
 .treeExplorer .treeExplorerNode > .nodeChildren {
   display: none;
 }
@@ -166,6 +170,14 @@ body#body {}
 
 .treeExplorer .treeExplorerNode.file::before {
   content: "\e022"
+}
+
+.treeExplorer .treeSearch{
+  display: none;
+}
+
+.treeExplorer .nodeContent:hover > .treeSearch {
+  display: inline-block;
 }
 
 #popup {
