@@ -49,6 +49,7 @@
 #include <sstream>
 #include <string>
 #include <array>
+#include <utility>
 
 namespace atmos {
 namespace query {
@@ -228,8 +229,8 @@ protected:
                          Json::Value& jsonValue);
 
   bool
-  json2CompleteSearchSql(std::stringstream& sqlQuery,
-                         Json::Value& jsonValue);
+  json2PrefixBasedSearchSql(std::stringstream& sqlQuery,
+                            Json::Value& jsonValue);
 
   ndn::Name
   getQueryResultsName(std::shared_ptr<const ndn::Interest> interest,
@@ -815,11 +816,11 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
 
 template <typename DatabaseHandler>
 bool
-QueryAdapter<DatabaseHandler>::json2CompleteSearchSql(std::stringstream& sqlQuery,
-                                              Json::Value& jsonValue)
+QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQuery,
+                                                         Json::Value& jsonValue)
 {
 #ifndef NDEBUG
-  std::cout << "jsonValue in json2CompleteSearchSql: " << jsonValue.toStyledString() << std::endl;
+  std::cout << "jsonValue in json2PrefixBasedSearchSql: " << jsonValue.toStyledString() << std::endl;
 #endif
   if (jsonValue.type() != Json::objectValue) {
     std::cout << jsonValue.toStyledString() << "is not json object" << std::endl;
@@ -846,10 +847,7 @@ QueryAdapter<DatabaseHandler>::json2CompleteSearchSql(std::stringstream& sqlQuer
 
     if (key.asString().compare("??") == 0) {
       typedString = value.asString();
-      // since the front end triggers the autocompletion when users typed '/',
-      // there must be a '/' at the end, and the first char must be '/'
-      if (typedString.empty() || typedString.at(typedString.length() - 1) != '/' ||
-          typedString.find("/") != 0)
+      if (typedString.empty() || typedString.find("/") != 0)
         return false;
       break;
     }
@@ -859,26 +857,34 @@ QueryAdapter<DatabaseHandler>::json2CompleteSearchSql(std::stringstream& sqlQuer
   size_t pos = 0;
   size_t start = 1; // start from the 1st char which is not '/'
   size_t count = 0; // also the name to query for
+  size_t typedStringLen = typedString.length();
   std::string token;
   std::string delimiter = "/";
-  std::map<std::string, std::string> typedComponents;
+  std::vector<std::pair<std::string, std::string>> typedComponents;
   while ((pos = typedString.find(delimiter, start)) != std::string::npos) {
     token = typedString.substr(start, pos - start);
-    if (count >= m_nameFields.size() - 1) {
+    if (count >= m_nameFields.size()) {
       return false;
     }
 
     // add column name and value (token) into map
-    typedComponents.insert(std::pair<std::string, std::string>(m_nameFields[count], token));
+    typedComponents.push_back(std::make_pair(m_nameFields[count], token));
+
     count++;
     start = pos + 1;
+  }
+
+  // we may have a component after the last "/"
+  if (start < typedStringLen) {
+    typedComponents.push_back(std::make_pair(m_nameFields[count],
+                                             typedString.substr(start, typedStringLen - start)));
   }
 
   // 2. generate the sql string (append what appears in the typed string, like activity='xxx'),
   // return true
   bool more = false;
   sqlQuery << "SELECT name FROM " << m_databaseTable;
-  for (std::map<std::string, std::string>::iterator it = typedComponents.begin();
+  for (std::vector<std::pair<std::string, std::string>>::iterator it = typedComponents.begin();
        it != typedComponents.end(); ++it) {
     if (more)
       sqlQuery << " AND";
@@ -977,7 +983,7 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
     }
   }
   else if (parsedFromString.get("??", tmp) != tmp) {
-    if (!json2CompleteSearchSql(sqlQuery, parsedFromString)) {
+    if (!json2PrefixBasedSearchSql(sqlQuery, parsedFromString)) {
       sendNack(segmentPrefix);
       return;
     }

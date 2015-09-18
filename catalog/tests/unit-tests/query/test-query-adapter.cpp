@@ -164,10 +164,10 @@ namespace tests{
     }
 
     bool
-    json2CompleteSearchSqlTest(std::stringstream& sqlQuery,
-                               Json::Value& jsonValue)
+    json2PrefixBasedSearchSqlTest(std::stringstream& sqlQuery,
+                                  Json::Value& jsonValue)
     {
-      return json2CompleteSearchSql(sqlQuery, jsonValue);
+      return json2PrefixBasedSearchSql(sqlQuery, jsonValue);
     }
   };
 
@@ -573,29 +573,39 @@ modeling_realm='Modeling' AND organization='Organization' AND product='Product' 
     BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson4));
 }
 
-  BOOST_AUTO_TEST_CASE(QueryAdapterCompleteSearchSuccessTest)
+  BOOST_AUTO_TEST_CASE(QueryAdapterPrefixBasedSearchSuccessTest)
   {
     initializeQueryAdapterTest2();
 
     std::stringstream ss;
     Json::Value testJson;
     testJson["??"] = "/";
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson));
     BOOST_CHECK_EQUAL("SELECT name FROM cmip5;", ss.str());
 
     ss.str("");
     ss.clear();
     testJson.clear();
+    testJson["??"] = "/Activity/Product";
+    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL("SELECT name FROM cmip5 WHERE activity='Activity' AND product='Product';",
+                      ss.str());
+
+    ss.str("");
+    ss.clear();
+    testJson.clear();
     testJson["??"] = "/Activity/Product/Organization/Model/Experiment/Frequency/Modeling/\
-Variable/Ensemble/";
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL("SELECT name FROM cmip5 WHERE activity='Activity' AND ensemble=\
-'Ensemble' AND experiment='Experiment' AND frequency='Frequency' AND model='Model' AND \
-modeling_realm='Modeling' AND organization='Organization' AND product='Product' AND variable_name=\
-'Variable';",ss.str());
+Variable/Ensemble/Time/";
+
+    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson));
+
+    BOOST_CHECK_EQUAL("SELECT name FROM cmip5 WHERE activity='Activity' AND product='Product' \
+AND organization='Organization' AND model='Model' AND experiment='Experiment' AND frequency=\
+'Frequency' AND modeling_realm='Modeling' AND variable_name='Variable' AND ensemble='Ensemble'\
+ AND time='Time';", ss.str());
   }
 
-  BOOST_AUTO_TEST_CASE(QueryAdapterCompleteSearchFailureTest)
+  BOOST_AUTO_TEST_CASE(QueryAdapterPrefixBasedSearchFailureTest)
   {
     initializeQueryAdapterTest2();
 
@@ -606,19 +616,19 @@ modeling_realm='Modeling' AND organization='Organization' AND product='Product' 
     ss.clear();
     testJson.clear();
     testJson["??"] = "";
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson));
 
     ss.str("");
     ss.clear();
     Json::Value testJson2; //simply clear does not work
     testJson2[0] = "test"; // incorrect json object
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson2));
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson2));
 
     ss.str("");
     ss.clear();
     Json::Value testJson3;
     testJson3 = Json::Value(Json::arrayValue);  // incorrect json object
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson3));
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson3));
 
     ss.str("");
     ss.clear();
@@ -626,7 +636,7 @@ modeling_realm='Modeling' AND organization='Organization' AND product='Product' 
     Json::Value param;
     param[0] = "test";
     testJson4["name"] = param;  // incorrect json object
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2CompleteSearchSqlTest(ss, testJson4));
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson4));
   }
 
   BOOST_AUTO_TEST_SUITE_END()
