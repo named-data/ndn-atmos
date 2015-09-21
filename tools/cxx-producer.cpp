@@ -33,6 +33,7 @@ usage(const char *fileName)
     "   [-c catalogPrefix]  - set the catalog prefix\n"
     "   [-f name list file]  - set the file that contains name list\n"
     "   [-n namespace]       - set the publisher namespace\n"
+    "   [-i signingId]       - set the publisher signing ID\n"
     "   [-h]                 - print help and exit\n"
     "\n";
 }
@@ -90,11 +91,15 @@ private:
     data->setContent(reinterpret_cast<const uint8_t*>(payload), payLoadLength);
 
     // Sign Data packet with default identity
-    m_keyChain.sign(*data);
+    if (m_signingId.empty())
+      m_keyChain.sign(*data);
+    else
+      m_keyChain.signByIdentity(*data, m_signingId);
+
+    std::cout << ">> D: " << *data << std::endl;
 
     // Return Data packet to the requester
-    std::cout << ">> D: " << *data << std::endl;
-    m_face.put(*data);
+      m_face.put(*data);
     m_face.shutdown();
   }
 
@@ -139,6 +144,7 @@ public:
   std::string m_jsonFile;
   std::string m_namespace;
   std::string m_catalogPrefix;
+  ndn::Name m_signingId;
 
 private:
   Face m_face;
@@ -158,16 +164,19 @@ main(int argc, char** argv)
     return 0;
   }
 
-  while ((option = getopt(argc, argv, "c:f:n:h")) != -1) {
+  while ((option = getopt(argc, argv, "c:f:n:i:h")) != -1) {
     switch (option) {
       case 'c':
-        producer.m_catalogPrefix.assign(optarg);
+        producer.m_catalogPrefix = optarg;
         break;
       case 'f':
-        producer.m_jsonFile.assign(optarg);
+        producer.m_jsonFile = optarg;
         break;
       case 'n':
-        producer.m_namespace.assign(optarg);
+        producer.m_namespace = optarg;
+        break;
+      case 'i':
+        producer.m_signingId = ndn::Name(optarg);
         break;
       case 'h':
       default:

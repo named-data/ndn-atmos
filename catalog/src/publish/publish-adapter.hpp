@@ -215,8 +215,11 @@ protected:
   onFetchUpdateDataTimeout(const ndn::Interest& interest);
 
   void
-  onUpdateValidationFailed(const std::shared_ptr<const ndn::Data>& data,
-                           const std::string& failureInfo);
+  onValidationFailed(const std::shared_ptr<const ndn::Data>& data,
+                     const std::string& failureInfo);
+
+  void
+  validatePublishedDataPaylod(const std::shared_ptr<const ndn::Data>& data);
 
 protected:
   typedef std::unordered_map<ndn::Name, const ndn::RegisteredPrefixId*> RegisteredPrefixList;
@@ -496,9 +499,9 @@ PublishAdapter<DatabaseHandler>::onPublishInterest(const ndn::InterestFilter& fi
   retrieveInterest->setInterestLifetime(ndn::time::milliseconds(4000));
   retrieveInterest->setMustBeFresh(m_mustBeFresh);
   m_face->expressInterest(*retrieveInterest,
-                          bind(&publish::PublishAdapter<DatabaseHandler>::onPublishedData,
+                          bind(&PublishAdapter<DatabaseHandler>::onPublishedData,
                                this,_1, _2),
-                          bind(&publish::PublishAdapter<DatabaseHandler>::onTimeout, this, _1));
+                          bind(&PublishAdapter<DatabaseHandler>::onTimeout, this, _1));
   std::cout << "Expressing Interest for: " << retrieveInterest->toUri() << std::endl;
 }
 
@@ -511,6 +514,14 @@ PublishAdapter<DatabaseHandler>::onTimeout(const ndn::Interest& interest)
 
 template <typename DatabaseHandler>
 void
+PublishAdapter<DatabaseHandler>::onValidationFailed(const std::shared_ptr<const ndn::Data>& data,
+                                                    const std::string& failureInfo)
+{
+  std::cout << "Validation failed: " << data->getName() << failureInfo << std::endl;
+}
+
+template <typename DatabaseHandler>
+void
 PublishAdapter<DatabaseHandler>::onPublishedData(const ndn::Interest& interest,
                                                  const ndn::Data& data)
 {
@@ -518,38 +529,46 @@ PublishAdapter<DatabaseHandler>::onPublishedData(const ndn::Interest& interest,
   if (data.getContent().empty()) {
     return;
   }
+  m_publishValidator->validate(data,
+                               bind(&PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod, this, _1),
+                               bind(&PublishAdapter<DatabaseHandler>::onValidationFailed, this, _1, _2));
+}
 
-  std::shared_ptr<ndn::Data> dataPtr = std::make_shared<ndn::Data>(data);
+template <typename DatabaseHandler>
+void
+PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod(const ndn::shared_ptr<const ndn::Data>& data)
+{
   // validate published data payload, if failed, return
-  if (!validatePublicationChanges(dataPtr)) {
-    std::cout << "data validation failed : " << dataPtr->getName() << std::endl;
+  if (!validatePublicationChanges(data)) {
+    std::cout << "data validation failed : " << data->getName() << std::endl;
 #ifndef NDEBUG
-    const std::string payload(reinterpret_cast<const char*>(dataPtr->getContent().value()),
-                              dataPtr->getContent().value_size());
+    const std::string payload(reinterpret_cast<const char*>(data->getContent().value()),
+                              data->getContent().value_size());
     std::cout << payload << std::endl;
 #endif
     return;
   }
 
   // todo: return value to indicate if the insertion succeeds
-  processUpdateData(dataPtr);
+  processUpdateData(data);
 
   // ideally, data should not be stale?
-  m_socket->publishData(data.getContent(), ndn::time::seconds(3600));
+  m_socket->publishData(data->getContent(), ndn::time::seconds(3600));
 
   // if this is not the final block, continue to fetch the next one
-  const ndn::name::Component& finalBlockId = data.getMetaInfo().getFinalBlockId();
-  if (finalBlockId == data.getName()[-1]) {
+  const ndn::name::Component& finalBlockId = data->getMetaInfo().getFinalBlockId();
+  if (finalBlockId == data->getName()[-1]) {
     m_isFinished = true;
   }
   //else, get the next segment
   if (!m_isFinished) {
-    ndn::Name nextInterestName = data.getName().getPrefix(-1);
-    uint64_t incomingSegment = data.getName()[-1].toSegment();
-    std::cout << " Next Interest Name " << nextInterestName << " Segment " << incomingSegment++
+    ndn::Name nextInterestName = data->getName().getPrefix(-1);
+    uint64_t incomingSegment = data->getName()[-1].toSegment();
+    incomingSegment++;
+    std::cout << " Next Interest Name " << nextInterestName << " Segment " << incomingSegment
               << std::endl;
     std::shared_ptr<ndn::Interest> nextInterest =
-      std::make_shared<ndn::Interest>(nextInterestName.appendSegment(incomingSegment++));
+      std::make_shared<ndn::Interest>(nextInterestName.appendSegment(incomingSegment));
     nextInterest->setInterestLifetime(ndn::time::milliseconds(4000));
     nextInterest->setMustBeFresh(m_mustBeFresh);
     m_face->expressInterest(*nextInterest,
@@ -697,15 +716,6 @@ PublishAdapter<DatabaseHandler>::onFetchUpdateDataTimeout(const ndn::Interest& i
 
 template <typename DatabaseHandler>
 void
-PublishAdapter<DatabaseHandler>::onUpdateValidationFailed(const
-                                                          std::shared_ptr<const ndn::Data>& data,
-                                                          const std::string& failureInfo)
-{
-  std::cout << "failed to validate Data" << data->getName() << " : " << failureInfo << std::endl;
-}
-
-template <typename DatabaseHandler>
-void
 PublishAdapter<DatabaseHandler>::processSyncUpdate(const std::vector<chronosync::MissingDataInfo>&
                                                    updates)
 {
@@ -725,7 +735,7 @@ PublishAdapter<DatabaseHandler>::processSyncUpdate(const std::vector<chronosync:
       if (seq > localSeqNo) {
         m_socket->fetchData(updates[i].session, seq,
                             bind(&PublishAdapter<DatabaseHandler>::processUpdateData,this, _1),
-                            bind(&PublishAdapter<DatabaseHandler>::onUpdateValidationFailed,
+                            bind(&PublishAdapter<DatabaseHandler>::onValidationFailed,
                                  this, _1, _2),
                             bind(&PublishAdapter<DatabaseHandler>::onFetchUpdateDataTimeout,
                                  this, _1),

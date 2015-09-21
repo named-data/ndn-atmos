@@ -6,7 +6,7 @@ general
   ; "ndn:/cmip5/catalog/query" and "ndn:/cmip5/catalog/query-results",
   ; PublishAdapter has the prefix "ndn:/cmip5/catalog/publish"
 
-  prefix /catalog/myUniqueName
+  prefix /cmip5
 
   ; Set name components for the scientific data, for example, the climate data
   ; contains name fields like activity, ..., time
@@ -32,8 +32,8 @@ queryAdapter
   {
     dbServer 127.0.0.1  ; Specify the database server
     dbName testdb       ; Specify the database name
-    dbUser testuser1    ; Specify the database user name
-    dbPasswd test123    ; Specify the associated password for the dbUser
+    dbUser testuser     ; Specify the database user name
+    dbPasswd test623    ; Specify the associated password for the dbUser
   }
 }
 
@@ -46,31 +46,115 @@ publishAdapter
 
   ; The security section contains the rules for the adapter to verify the
   ; published files indeed come from a valid publisher.
-  ; security
-  ; {
-  ;   rule
-  ;   {
-  ;     id "NDN Hierarchy Test Rule"
-  ;     for data                             ; rule for Data (to validate NDN certificates)
-  ;     filter
-  ;     {
-  ;       type name                          ; condition on data name
-  ;       regex ^(<>*)$
-  ;     }
-  ;     checker
-  ;     {
-  ;       type hierarchical                  ; the certificate name of the signing key and
-  ;                                          ; the data name must follow the hierarchical model
-  ;       sig-type rsa-sha256                ; data must have a rsa-sha256 signature
-  ;     }
-  ;   }
-  ;   trust-anchor
-  ;   {
-  ;     type file
-  ;     file-name /directory/to/the/root.ndncert ; the file name, by default this file should be
-  ;                                              ; in same folder as this config file.
-  ;   }
-  ; }
+  security
+  {
+    rule
+    {
+      id "Publishing data is signed by the Datapublisher's dsk"
+      for data              ; rule for Data (to validate NDN certificates)
+      filter
+      {
+        type name
+        regex ^<><><><>$    ; condition on data name
+      }
+      checker
+      {
+        type customized
+        sig-type rsa-sha256
+        key-locator
+        {
+          type name
+          hyper-relation
+          {
+            k-regex ^([^<DataPublisher><KEY>]*)<DataPublisher><KEY><dsk-.*><ID-CERT>$
+            k-expand \\1
+            h-relation equal
+            p-regex ^(<>)<>(<>)<>$
+            p-expand \\1\\2
+          }
+        }
+      }
+    }
+
+    rule
+    {
+      id "Datapublisher's dsk is signed by its ksk"
+      for data
+      filter
+      {
+        type name
+        regex ^[^<DataPublisher><KEY>]*<DataPublisher><KEY><dsk-.*><ID-CERT><>$
+      }
+      checker
+      {
+        type customized
+        sig-type rsa-sha256
+        key-locator
+        {
+          type name
+          hyper-relation
+          {
+            k-regex ^([^<DataPublisher><KEY>]*)<DataPublisher><KEY><ksk-.*><ID-CERT>$
+            k-expand \\1
+            h-relation equal
+            p-regex ^([^<DataPublisher><KEY>]*)<DataPublisher><KEY><dsk-.*><ID-CERT><>$
+            p-expand \\1
+          }
+        }
+      }
+    }
+
+    rule
+    {
+      id "DataPublisher's ksk signed by the site's ksk"
+      for data
+      filter
+      {
+        type name
+        regex ^[^<DataPublisher><KEY>]*<DataPublisher><KEY><ksk-.*><ID-CERT><>$
+      }
+      checker
+      {
+        type customized
+        sig-type rsa-sha256
+        key-locator
+        {
+          type name
+          hyper-relation
+          {
+            k-regex ^([^<KEY>]*)<KEY><ksk-.*><ID-CERT>$
+            k-expand \\1
+            h-relation equal
+            p-regex ^([^<DataPublisher><KEY>]*)<DataPublisher><KEY><ksk-.*><ID-CERT><>$
+            p-expand \\1
+          }
+        }
+      }
+    }
+
+    rule
+    {
+      id "publishing Hierarchical Rule"
+      for data
+      filter
+      {
+        type name
+        regex ^[^<KEY>]*<KEY><ksk-.*><ID-CERT><>$
+      }
+      checker
+      {
+        type hierarchical
+        sig-type rsa-sha256
+      }
+    }
+
+    trust-anchor
+    {
+      type file
+      file-name /usr/local/etc/ndn/nlsr/keys/cmip5_root.cert ; the file name of trust-anchor
+    }
+
+  }
 
   ; The database section contains settings of database
   ; The user in publishAdapter may differ from the one in queryAdapter, to provide different
@@ -79,8 +163,8 @@ publishAdapter
   {
     dbServer 127.0.0.1  ; Specify the database server
     dbName testdb       ; Specify the database name
-    dbUser testuser2    ; Specify the database user name
-    dbPasswd test123    ; Specify the associated password for the dbUser
+    dbUser testuser     ; Specify the database user name
+    dbPasswd test623    ; Specify the associated password for the dbUser
   }
 
   ; The sync section contains settings of ChronoSync

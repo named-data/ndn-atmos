@@ -101,7 +101,7 @@ namespace tests{
                  uint64_t viewEnd)
     {
       return makeReplyData(segmentPrefix, value, segmentNo, isFinalBlock,
-                           isAutocomplete, resultCount, viewStart, viewEnd);
+                           isAutocomplete, resultCount, viewStart, viewEnd, false);
     }
 
     void
@@ -113,7 +113,8 @@ namespace tests{
     void
     prepareSegments(const ndn::Name& segmentPrefix,
                     const std::string& sqlString,
-                    bool autocomplete)
+                    bool autocomplete,
+                    bool lastComponent)
     {
       BOOST_CHECK_EQUAL(sqlString, "SELECT name FROM cmip5 WHERE name=\'test\';");
       Json::Value fileList;
@@ -122,7 +123,8 @@ namespace tests{
       fileList.append("/ndn/test3");
 
       std::shared_ptr<ndn::Data> data = makeReplyData(segmentPrefix,
-                                                      fileList, 0, true, false, 3, 0, 2);
+                                                      fileList, 0, true, false,
+                                                      3, 0, 2, lastComponent);
       m_mutex.lock();
       m_cache.insert(*data);
       m_mutex.unlock();
@@ -158,9 +160,10 @@ namespace tests{
 
     bool
     json2AutocompletionSqlTest(std::stringstream& sqlQuery,
-                               Json::Value& jsonValue)
+                               Json::Value& jsonValue,
+                               bool& lastComponent)
     {
-      return json2AutocompletionSql(sqlQuery, jsonValue);
+      return json2AutocompletionSql(sqlQuery, jsonValue, lastComponent);
     }
 
     bool
@@ -505,22 +508,29 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
 
     std::stringstream ss;
     Json::Value testJson;
+    bool lastComponent = false;
     testJson["?"] = "/";
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL(true,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+    BOOST_CHECK_EQUAL(lastComponent, false);
     BOOST_CHECK_EQUAL("SELECT DISTINCT activity FROM cmip5;", ss.str());
 
     ss.str("");
     ss.clear();
     testJson.clear();
     testJson["?"] = "/Activity/";
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL(true,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+    BOOST_CHECK_EQUAL(lastComponent, false);
     BOOST_CHECK_EQUAL("SELECT DISTINCT product FROM cmip5 WHERE activity='Activity';", ss.str());
 
     ss.str("");
     ss.clear();
     testJson.clear();
     testJson["?"] = "/Activity/Product/Organization/Model/Experiment/";
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL(true,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+    BOOST_CHECK_EQUAL(lastComponent, false);
     BOOST_CHECK_EQUAL("SELECT DISTINCT frequency FROM cmip5 WHERE activity='Activity' AND \
 experiment='Experiment' AND model='Model' AND organization='Organization' AND product='Product';",
      ss.str());
@@ -530,7 +540,9 @@ experiment='Experiment' AND model='Model' AND organization='Organization' AND pr
     testJson.clear();
     testJson["?"] = "/Activity/Product/Organization/Model/Experiment/Frequency/Modeling/\
 Variable/Ensemble/";
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL(true,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+    BOOST_CHECK_EQUAL(lastComponent, true);
     BOOST_CHECK_EQUAL("SELECT DISTINCT time FROM cmip5 WHERE activity='Activity' AND ensemble=\
 'Ensemble' AND experiment='Experiment' AND frequency='Frequency' AND model='Model' AND \
 modeling_realm='Modeling' AND organization='Organization' AND product='Product' AND variable_name=\
@@ -543,26 +555,31 @@ modeling_realm='Modeling' AND organization='Organization' AND product='Product' 
 
     std::stringstream ss;
     Json::Value testJson;
+    bool lastComponent = false;
     testJson["?"] = "serchTest";
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL(false,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
 
     ss.str("");
     ss.clear();
     testJson.clear();
     testJson["?"] = "/cmip5";
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson));
+    BOOST_CHECK_EQUAL(false,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
 
     ss.str("");
     ss.clear();
     Json::Value testJson2; //simply clear does not work
     testJson2[0] = "test";
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson2));
+    BOOST_CHECK_EQUAL(false,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson2, lastComponent));
 
     ss.str("");
     ss.clear();
     Json::Value testJson3;
     testJson3 = Json::Value(Json::arrayValue);
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson3));
+    BOOST_CHECK_EQUAL(false,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson3, lastComponent));
 
     ss.str("");
     ss.clear();
@@ -570,7 +587,8 @@ modeling_realm='Modeling' AND organization='Organization' AND product='Product' 
     Json::Value param;
     param[0] = "test";
     testJson4["name"] = param;
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson4));
+    BOOST_CHECK_EQUAL(false,
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson4, lastComponent));
 }
 
   BOOST_AUTO_TEST_CASE(QueryAdapterPrefixBasedSearchSuccessTest)

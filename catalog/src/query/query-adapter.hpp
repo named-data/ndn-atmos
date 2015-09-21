@@ -144,6 +144,8 @@ protected:
    * @param resultCount:    the number of records in the query results
    * @param viewStart:      the start index of the record in the query results payload
    * @param viewEnd:        the end index of the record in the query results payload
+   * @param lastComponent:  flag to indicate the content contains the last component for
+                            autocompletion query
    */
   std::shared_ptr<ndn::Data>
   makeReplyData(const ndn::Name& segmentPrefix,
@@ -153,7 +155,8 @@ protected:
                 bool isAutocomplete,
                 uint64_t resultCount,
                 uint64_t viewStart,
-                uint64_t viewEnd);
+                uint64_t viewEnd,
+                bool lastComponent);
 
   /**
    * Helper function that generates query results from a Json query carried in the Interest
@@ -202,7 +205,8 @@ protected:
   virtual void
   prepareSegments(const ndn::Name& segmentPrefix,
                   const std::string& sqlString,
-                  bool autocomplete);
+                  bool autocomplete,
+                  bool lastComponent);
 
   /**
    * Helper function to set the DatabaseHandler
@@ -221,12 +225,14 @@ protected:
 
   /**
    * Helper function that generates the sqlQuery string for autocomplete query
-   * @param sqlQuery:     stringstream to save the sqlQuery string
-   * @param jsonValue:    Json value that contains the query information
+   * @param sqlQuery:      stringstream to save the sqlQuery string
+   * @param jsonValue:     Json value that contains the query information
+   * @param lastComponent: Flag to mark the last component query
    */
   bool
   json2AutocompletionSql(std::stringstream& sqlQuery,
-                         Json::Value& jsonValue);
+                         Json::Value& jsonValue,
+                         bool& lastComponent);
 
   bool
   json2PrefixBasedSearchSql(std::stringstream& sqlQuery,
@@ -738,7 +744,8 @@ QueryAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlQuery,
 template <typename DatabaseHandler>
 bool
 QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuery,
-                                                      Json::Value& jsonValue)
+                                                      Json::Value& jsonValue,
+                                                      bool& lastComponent)
 {
 #ifndef NDEBUG
   std::cout << "jsonValue in json2AutocompletionSql: " << jsonValue.toStyledString() << std::endl;
@@ -797,6 +804,9 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
 
   // 2. generate the sql string (append what appears in the typed string, like activity='xxx'),
   // return true
+  if (count == m_nameFields.size() - 1)
+    lastComponent = true; // indicate this query is to query the last component
+
   bool more = false;
   sqlQuery << "SELECT DISTINCT " << m_nameFields[count] << " FROM " << m_databaseTable;
   for (std::map<std::string, std::string>::iterator it = typedComponents.begin();
@@ -967,7 +977,7 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
   m_mutex.unlock();
 
   // 3) Convert the JSON Query into a MySQL one
-  bool autocomplete = false;
+  bool autocomplete = false, lastComponent = false;
   std::stringstream sqlQuery;
 
   ndn::Name segmentPrefix(getQueryResultsName(interest, version));
@@ -977,7 +987,7 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
   // if JSON::Value contains ? as key, is autocompletion
   if (parsedFromString.get("?", tmp) != tmp) {
     autocomplete = true;
-    if (!json2AutocompletionSql(sqlQuery, parsedFromString)) {
+    if (!json2AutocompletionSql(sqlQuery, parsedFromString, lastComponent)) {
       sendNack(segmentPrefix);
       return;
     }
@@ -996,14 +1006,15 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
   }
 
   // 4) Run the Query
-  prepareSegments(segmentPrefix, sqlQuery.str(), autocomplete);
+  prepareSegments(segmentPrefix, sqlQuery.str(), autocomplete, lastComponent);
 }
 
 template <typename DatabaseHandler>
 void
 QueryAdapter<DatabaseHandler>::prepareSegments(const ndn::Name& segmentPrefix,
                                                const std::string& sqlString,
-                                               bool autocomplete)
+                                               bool autocomplete,
+                                               bool lastComponent)
 {
   // empty
 }
@@ -1013,7 +1024,8 @@ template<>
 void
 QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
                                      const std::string& sqlString,
-                                     bool autocomplete)
+                                     bool autocomplete,
+                                     bool lastComponent)
 {
 #ifndef NDEBUG
   std::cout << "prepareSegments() executes sql : " << sqlString << std::endl;
@@ -1057,7 +1069,7 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
     if (tmpString.length() > PAYLOAD_LIMIT) {
       std::shared_ptr<ndn::Data> data
         = makeReplyData(segmentPrefix, resultJson, segmentNo, false,
-                        autocomplete, resultCount, viewStart, viewEnd);
+                        autocomplete, resultCount, viewStart, viewEnd, lastComponent);
       m_mutex.lock();
       m_cache.insert(*data);
       m_mutex.unlock();
@@ -1072,7 +1084,7 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
 
   std::shared_ptr<ndn::Data> data
     = makeReplyData(segmentPrefix, resultJson, segmentNo, true,
-                    autocomplete, resultCount, viewStart, viewEnd);
+                    autocomplete, resultCount, viewStart, viewEnd, lastComponent);
   m_mutex.lock();
   m_cache.insert(*data);
   m_mutex.unlock();
@@ -1087,7 +1099,8 @@ QueryAdapter<DatabaseHandler>::makeReplyData(const ndn::Name& segmentPrefix,
                                              bool isAutocomplete,
                                              uint64_t resultCount,
                                              uint64_t viewStart,
-                                             uint64_t viewEnd)
+                                             uint64_t viewEnd,
+                                             bool lastComponent)
 {
   Json::Value entry;
   Json::FastWriter fastWriter;
@@ -1095,6 +1108,9 @@ QueryAdapter<DatabaseHandler>::makeReplyData(const ndn::Name& segmentPrefix,
   entry["resultCount"] = Json::UInt64(resultCount);;
   entry["viewStart"] = Json::UInt64(viewStart);
   entry["viewEnd"] = Json::UInt64(viewEnd);
+
+  if (lastComponent)
+    entry["lastComponent"] = Json::Value(true);
 
 #ifndef NDEBUG
   std::cout << "resultCount " << resultCount
