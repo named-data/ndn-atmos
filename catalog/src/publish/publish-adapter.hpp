@@ -156,7 +156,7 @@ protected:
    * @param data: shared pointer for the fetched update data
    */
   void
-  processUpdateData(const ndn::shared_ptr<const ndn::Data>& data);
+  processUpdateData(const std::shared_ptr<const ndn::Data>& data);
 
   /**
    * Helper function that add data to or remove data from database
@@ -539,14 +539,20 @@ PublishAdapter<DatabaseHandler>::onPublishedData(const ndn::Interest& interest,
   if (data.getContent().empty()) {
     return;
   }
-  m_publishValidator->validate(data,
-                               bind(&PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod, this, _1),
-                               bind(&PublishAdapter<DatabaseHandler>::onValidationFailed, this, _1, _2));
+  if (m_publishValidator != nullptr) {
+    m_publishValidator->validate(data,
+                                 bind(&PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod, this, _1),
+                                 bind(&PublishAdapter<DatabaseHandler>::onValidationFailed, this, _1, _2));
+  }
+  else {
+    std::shared_ptr<ndn::Data> dataPtr = std::make_shared<ndn::Data>(data);
+    validatePublishedDataPaylod(dataPtr);
+  }
 }
 
 template <typename DatabaseHandler>
 void
-PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod(const ndn::shared_ptr<const ndn::Data>& data)
+PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod(const std::shared_ptr<const ndn::Data>& data)
 {
   _LOG_DEBUG(">> PublishAdapter::onValidatePublishedDataPayload");
 
@@ -594,7 +600,7 @@ PublishAdapter<DatabaseHandler>::validatePublishedDataPaylod(const ndn::shared_p
 
 template <typename DatabaseHandler>
 void
-PublishAdapter<DatabaseHandler>::processUpdateData(const ndn::shared_ptr<const ndn::Data>& data)
+PublishAdapter<DatabaseHandler>::processUpdateData(const std::shared_ptr<const ndn::Data>& data)
 {
   _LOG_DEBUG(">> PublishAdapter::processUpdateData");
 
