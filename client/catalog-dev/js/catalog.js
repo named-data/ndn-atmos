@@ -96,9 +96,11 @@ var Atmos = (function(){
     //Init autocomplete
     this.searchInput.autoComplete(function(field, callback){
       ga('send', 'event', 'search', 'autocomplete');
-      scope.autoComplete(field, function(list){
+      scope.autoComplete(field, function(data){
+        var list = data.next;
+        var last = data.lastComponent === true;
         callback(list.map(function(element){
-          return field + element + "/";
+          return field + element + (last?"/":""); //Don't add trailing slash for last component.
         }));
       });
     });
