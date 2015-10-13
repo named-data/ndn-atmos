@@ -273,26 +273,36 @@ var Atmos = (function(){
       var name = new Name(data.getContent().toString().replace(/[\n\0]/g,""));
 
       var interest = new Interest(name);
-      interest.setInterestLifetimeMilliseconds(5000);
+      interest.setInterestLifetimeMilliseconds(1500);
       interest.setMustBeFresh(true);
 
-      scope.face.expressInterest(interest,
-      function(interest, data){
+      var count = 3;
 
-        if (data.getContent().length !== 0){
-          callback(JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")));
-        } else {
-          callback([]);
+      var run = function(){
+
+        if (--count === 0){
+          console.warn("Interest timed out!", interest);
+          scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
+          return;
         }
 
-      }, function(interest){
-        console.warn("Interest timed out!", interest);
-        scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
-      });
+        scope.face.expressInterest(interest,
+        function(interest, data){
+
+          if (data.getContent().length !== 0){
+            callback(JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")));
+          } else {
+            callback([]);
+          }
+
+        }, run);
+      }
+
+      run();
 
     }, function(interest){
       console.error("Request failed! Timeout", interest);
-      scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
+      scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
     });
 
   }
@@ -416,10 +426,19 @@ var Atmos = (function(){
     queryPrefix.append(jsonString);
 
     var queryInterest = new Interest(queryPrefix);
-    queryInterest.setInterestLifetimeMilliseconds(4000);
+    queryInterest.setInterestLifetimeMilliseconds(1500);
     queryInterest.setMustBeFresh(true);
 
-    this.face.expressInterest(queryInterest, callback, timeout);
+    var face = this.face;
+    var retry = 3;
+    var run = function(interest){
+      if (--retry === 0){
+        timeout(interest);
+      } else {
+        face.expressInterest(queryInterest, callback, run);
+      }
+    }
+    run();
 
   }
 
@@ -656,19 +675,28 @@ var Atmos = (function(){
     var scope = this;
     var d = [];
 
+    var count = 3;
+    var retry = function(interest){
+      if (count === 0){
+        timeout(interest);
+      } else {
+        count--;
+        request(interest.getName().get(-1).toSegment());
+      }
+    }
+
     var request = function(segment){
 
       var name = new Name(prefix);
       name.appendSegment(segment);
 
       var interest = new Interest(name);
-      interest.setInterestLifetimeMilliseconds(1000);
+      interest.setInterestLifetimeMilliseconds(1500);
       interest.setMustBeFresh(true); //Is this needed?
 
-      scope.face.expressInterest(interest, handleData, timeout);
+      scope.face.expressInterest(interest, handleData, retry);
 
     }
-
 
     var handleData = function(interest, data){
 
@@ -677,7 +705,7 @@ var Atmos = (function(){
       if (interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment()){
         callback(d.join(""));
       } else {
-        request(interest.getName().toSegment()++);
+        request(interest.getName().get(-1).toSegment() + 1);
       }
 
     }
