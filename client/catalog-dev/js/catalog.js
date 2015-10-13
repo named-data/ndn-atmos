@@ -257,8 +257,8 @@ var Atmos = (function(){
       scope.getResults(0);
 
     }, function(interest){ //Timeout function
-      console.warn("Request failed! Timeout");
-      scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
+      console.warn("Request failed after 3 attempts!", interest);
+      scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
     });
 
   }
@@ -528,24 +528,6 @@ var Atmos = (function(){
         //Retrieval
         var retrievePrefix = new Name("/catalog/ui/" + guid());
 
-        //Due to a lack of success callback in the register prefix function, we have to pretend we
-        //know it succeeded with an arbitrary timeout.
-        var sendTimer = setTimeout(function(){
-          var prefix = new Name(dest.text());
-          prefix.append(retrievePrefix);
-          var interest = new Interest(prefix);
-          interest.setInterestLifetimeMilliseconds(3000);
-          scope.face.expressInterest(interest,
-            function(interest, data){ //Success
-              console.log("Request for", prefix.toUri(), "succeeded.", interest, data);
-              scope.createAlert("Data retrieval has initiated.", "alert-success");
-            }, function(interest){ //Failure
-              console.error("Request for", prefix.toUri(), "timed out.", interest);
-              scope.createAlert("Request for " + prefix.toUri() + " timed out. This means that the retrieve failed! See console for more details.");
-            }
-          );
-        }, 5000); //Wait 5 seconds
-
         scope.face.registerPrefix(retrievePrefix,
           function(prefix, interest, face, interestFilterId, filter){ //On Interest
             //This function will exist until the page exits but will likely only be used once.
@@ -558,16 +540,38 @@ var Atmos = (function(){
             try {
               face.putData(data);
               console.log("Responded for", interest.getName().toUri(), data);
+              scope.createAlert("Data retrieval has initiated.", "alert-success");
             } catch (e) {
               console.error("Failed to respond to", interest.getName().toUri(), data);
               scope.createAlert("Data retrieval failed.");
             }
 
           }, function(prefix){ //On fail
-            clearTimeout(sendTimer); //Cancel the earlier request timer
             scope.createAlert("Failed to register the retrieval URI! See console for details.", "alert-danger");
             console.error("Failed to register URI:", prefix.toUri(), prefix);
 
+          }, function(prefix, registeredPrefixId){ //On success
+            var name = new Name(dest.text());
+            name.append(prefix);
+            var interest = new Interest(name);
+            interest.setInterestLifetimeMilliseconds(1500);
+            var count = 3;
+            var run = function(i2){
+
+              if (--count === 0) {
+                console.error("Request for", name.toUri(), "timed out (3 times).", i2);
+                scope.createAlert("Request for " + name.toUri() + " timed out after 3 attempts. This means that the retrieve failed! See console for more details.");
+                return;
+              }
+
+              scope.face.expressInterest(interest,
+                function(interest, data){ //Success
+                  console.log("Request for", name.toUri(), "succeeded.", interest, data);
+                },
+                run
+              );
+            }
+            run();
           }
         );
 
