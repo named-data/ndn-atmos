@@ -37,6 +37,11 @@
       <div class="navbar-header">
         <div class="navbar-brand">NDN Query and Retrieval Tool</div>
       </div>
+      <ul class="navbar-nav nav">
+        <li class="active"><a data-toggle="tab" href="#filterSearch">Filter Search</a></li>
+        <li><a data-toggle="tab" href="#pathSearch">Path Search</a></li>
+        <li><a data-toggle="tab" href="#treeSearchPane">Tree Search</a></li>
+      </ul>
     </div>
   </header>
 
@@ -44,30 +49,31 @@
 
     <div class="row">
 
-      <div class="col-sm-3 col-md-2 sidebar">
-        <div class="panel panel-primary">
-          <div class="panel-heading">
-            <span>Filter Categories</span>
-          </div>
-          <div class="panel-body">
-            <ul id="side-menu" class="nav nav-pills nav-stacked"></ul>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-sm-9 col-md-10">
+      <div  class="col-sm-12 col-md-12">
 
         <div id="alerts"></div>
 
-        <div class="panel panel-info">
+        <div class="panel panel-info tab-pane fade in active" id="filterSearch">
           <div class="panel-heading">Filter Based Search</div>
           <div class="panel-body">
-            <div id="filters"></div>
-            <button id="searchButton" class="btn btn-primary right-fix">Search</button>
+            <div class="col-sm-3 col-md-2 sidebar">
+              <div class="panel panel-primary">
+                <div class="panel-heading">
+                  <span>Filter Categories</span>
+                </div>
+                <div class="panel-body">
+                  <ul id="side-menu" class="nav nav-pills nav-stacked"></ul>
+                </div>
+              </div>
+            </div>
+            <div class="col-sm-9 col-md-10">
+              <div id="filters"></div>
+              <button id="searchButton" class="btn btn-primary right-fix">Search</button>
+            </div>
           </div>
         </div>
 
-        <div class="panel panel-info">
+        <div class="panel panel-info tab-pane fade" id="pathSearch">
           <div class="panel-heading">Path Based Search</div>
           <div class="panel-body">
             <form class="form-inline" id="searchBar">
@@ -85,9 +91,9 @@
           </div>
         </div>
 
-        <div class="panel panel-info">
-          <div class="panel-heading">Tree Based Search<a data-toggle="collapse" class="collapsed" data-target="#treeSearch" href="#treeSearch"></a></div>
-          <div class="panel-body collapse" id="treeSearch">
+        <div class="panel panel-info tab-pane fade" id="treeSearchPane">
+          <div class="panel-heading">Tree Based Search</div>
+          <div class="panel-body" id="treeSearch">
             <div></div>
           </div>
         </div>
@@ -109,6 +115,7 @@
                   </ul>
                 </li>
                 <li><a href="#" class="requestSelectedButton">Request Selected</a></li>
+                <li><a href="#" class="clearResults">Clear</a></li>
               </ul>
               <div class="navbar-text">(Page <span class="pageNumber">0</span>) <span class="pageLength">0</span>/<span class="totalResults">0</span> Results</div>
               <ul class="nav navbar-nav navbar-right">
@@ -144,6 +151,7 @@
                   </ul>
                 </li>
                 <li><a href="#" class="requestSelectedButton">Request Selected</a></li>
+                <li><a href="#" class="clearResults">Clear</a></li>
               </ul>
               <div class="navbar-text">(Page <span class="pageNumber">0</span>) <span class="pageLength">0</span>/<span class="totalResults">0</span> Results</div>
               <ul class="nav navbar-nav navbar-right">

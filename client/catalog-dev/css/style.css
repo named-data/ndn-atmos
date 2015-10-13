@@ -51,9 +51,7 @@ body#body {}
 #filters .label {
   /* display: none; */
   font-size: inherit;
-  transition: background-color 1s, 
-  
-  border-color 2s;
+  transition: background-color 1s, border-color 2s;
   cursor: pointer;
 }
 
@@ -101,6 +99,7 @@ body#body {}
   left: 0;
   transition: max-height 1s;
   z-index: 1;
+  top: 40px !important; /* Ignore the library style */
 }
 
 *:focus ~ .autoComplete { /* If the parent detects focus on any subelement or itself */
@@ -144,6 +143,7 @@ body#body {}
 
 .treeExplorer .treeExplorerNode .nodeContent {
   display: inline-block;
+  min-height: 24px;
 }
 
 .treeExplorer .treeExplorerNode > .nodeChildren {
@@ -220,4 +220,16 @@ table:empty ~ .sk-cube-grid {
   position: absolute;
   bottom: 0;
   right: 0;
+}
+
+.fade {
+  display: none;
+}
+
+.fade.in {
+  display: block;
+}
+
+.navbar-brand {
+  text-shadow: 1px 1px 1px black;
 }

@@ -139,6 +139,13 @@ var Atmos = (function(){
         scope.getResults(scope.page - 1);
       }
     });
+    this.resultMenu.find('.clearResults').click(function(){
+      ga('send', 'event', 'button', 'click', 'resultClear');
+      scope.clearResults();
+      $('#results').fadeOut(function(){
+        $(this).addClass('hidden');
+      });
+    });
 
     //Change the number of results per page handler
     var rpps = $('.resultsPerPageSelector').click(function(){
@@ -336,7 +343,7 @@ var Atmos = (function(){
       $('#results').removeClass('hidden').slideDown();
     }
 
-    $.scrollTo("#results", 700);
+    $.scrollTo("#results", 500, {interrupt: true});
 
     if ((this.results.length === this.resultCount) || (this.resultsPerPage * (index + 1) < this.results.length)){
       //console.log("We already have index", index);

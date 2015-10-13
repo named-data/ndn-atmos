@@ -3,7 +3,18 @@
   "use strict";
   jQuery.fn.extend({
 
-    treeExplorer: function(getChildren){
+    treeExplorer: function(getChildren, settings){
+
+      this.settings = {
+        autoScroll : false
+      }
+
+      for (var value in settings) {
+        if (this.settings[value] !== undefined){
+          this.settings[value] = settings[value];
+        }
+      }
+
       var cache = {}; //Cache previously requested paths.
 
       var tree = $('<div class="treeExplorer"></div>');
@@ -37,7 +48,13 @@
         });
       }
 
-      tree.on('click', '.treeExplorerNode > .nodeContent > a', function(){
+      var scope = this;
+
+      tree.on('click', '.treeExplorerNode > .nodeContent > a', function(e){
+        if (!scope.settings.autoScroll){
+          e.preventDefault();
+        }
+
         var node = $(this).parent().parent();
 
         if (node.hasClass('open')){ //Are we open already?
