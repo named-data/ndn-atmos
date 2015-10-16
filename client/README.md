@@ -6,30 +6,7 @@ This is the front end to the catalog which contains all of the client html and c
 Setup
 -----
 
-###To simply run the client code:
-
-You will need the following things setup:
-
-* A NDN backend running somewhere (The default config is pointed at a test backend)
-* NDN-JS
-  + Run `git submodule init ndn-js` in the client directory.
-  + Then run `git submodule update`
-* Configure the config.json in catalog-dev
-  + If it doesn't exist, you will need to copy it from the config-example.json
-  + config.json is intentionally left out of the git to prevent overwriting your changes.
-
-_Note: The dev code runs from catalog-dev and is not gauranteed to run across all browsers. Only the deployment code is prepared in such a way that we can promise the code will work. (Internet explorer may work but is not officially supported by either option)_
-
-###To run the deployment code:
-
-You will additionally require npm and node installed (npm is packaged with the default node installation).
-
-Run the following:
-```
-npm install -g gulp
-npm install
-gulp
-```
+To setup the site including the production folder simply run `./autogen.sh`
 
 The site will now be available in the catalog directory.
 
