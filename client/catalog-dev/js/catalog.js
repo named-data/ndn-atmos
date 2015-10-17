@@ -203,6 +203,22 @@ var Atmos = (function(){
 
     this.setupRequestForm();
 
+    this.resultTable.popover({
+      selector : ".metaDataLink",
+      content: function(){
+        return scope.getMetaData(this);
+      },
+      title: "Metadata",
+      html: true,
+      trigger: 'click',
+      placement: 'bottom'
+    });
+
+    this.resultTable.on('click', '.metaDataLink', function(e){
+      //This prevents the page from scrolling when you click on a name.
+      e.preventDefault();
+    });
+
   }
 
   Atmos.prototype.clearResults = function(){
@@ -313,9 +329,9 @@ var Atmos = (function(){
 
     var resultDOM = $(
       results.reduce(function(prev, current){
-        prev.push('<tr><td><input class="resultSelector" type="checkbox"></td><td>');
+        prev.push('<tr><td><input class="resultSelector" type="checkbox"></td><td class="popover-container"><a href="#" class="metaDataLink">');
         prev.push(current);
-        prev.push('</td></tr>');
+        prev.push('</a></td></tr>');
         return prev;
       }, ['<tr><th><input id="resultSelectAll" type="checkbox" title="Select All"> Select</th><th>Name</th></tr>']).join('')
     );
@@ -670,7 +686,7 @@ var Atmos = (function(){
    * This function retrieves all segments in order until it knows it has reached the last one.
    * It then returns the final joined result.
    */
-  Atmos.prototype.getAll = function(prefix, callback, timeout){
+  Atmos.prototype.getAll = function(prefix, callback, failure){
 
     var scope = this;
     var d = [];
@@ -678,7 +694,8 @@ var Atmos = (function(){
     var count = 3;
     var retry = function(interest){
       if (count === 0){
-        timeout(interest);
+        console.log("Failed to 'getAll' after 3 attempts", interest);
+        failure(interest);
       } else {
         count--;
         request(interest.getName().get(-1).toSegment());
@@ -791,6 +808,36 @@ var Atmos = (function(){
 //    this.requestForm.find('input[type=file]').change(handleFile);
 
   }
+
+  Atmos.prototype.getMetaData = (function(){
+
+    var cache = {};
+
+    return function(element) {
+      var name = $(element).text();
+
+      if (cache[name]) {
+        return ['<pre class="metaData">', cache[name], '</pre>'].join('');
+      }
+
+      var prefix = new Name(name).append("metadata");
+      var id = guid(); //We need an id because the return MUST be a string.
+      var ret = '<div id="' + id + '"><span class="fa fa-spinner fa-spin"></span></div>';
+
+      this.getAll(prefix, function(data){
+        var el = $('<pre class="metaData"></pre>');
+        el.text(data);
+        $('#' + id).remove('span').append(el);
+        cache[name] = data;
+      }, function(interest){
+        $('#' + id).text("The metadata is unavailable for this name.");
+        console.log("Data is unavailable for " + name);
+      });
+
+      return ret;
+
+    }
+  })();
 
   return Atmos;
 

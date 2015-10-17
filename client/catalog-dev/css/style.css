@@ -233,3 +233,18 @@ table:empty ~ .sk-cube-grid {
 .navbar-brand {
   text-shadow: 1px 1px 1px black;
 }
+
+.popover {
+  max-width: none;
+}
+
+.popover-container {
+  position: relative;
+}
+
+.metaData {
+  width: 600px;
+  max-height: 800px;
+  word-wrap: normal;
+  overflow: auto;
+}
