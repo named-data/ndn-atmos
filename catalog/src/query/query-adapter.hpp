@@ -39,6 +39,7 @@
 #include <ndn-cxx/encoding/encoding-buffer.hpp>
 #include <ndn-cxx/util/in-memory-storage-lru.hpp>
 #include <ndn-cxx/util/string-helper.hpp>
+#include <ChronoSync/socket.hpp>
 
 #include "mysql/mysql.h"
 
@@ -72,11 +73,13 @@ public:
   /**
    * Constructor
    *
-   * @param face:      Face that will be used for NDN communications
-   * @param keyChain:  KeyChain that will be used for data signing
+   * @param face:       Face that will be used for NDN communications
+   * @param keyChain:   KeyChain that will be used for data signing
+   * @param syncSocket: ChronoSync socket
    */
   QueryAdapter(const std::shared_ptr<ndn::Face>& face,
-               const std::shared_ptr<ndn::KeyChain>& keyChain);
+               const std::shared_ptr<ndn::KeyChain>& keyChain,
+               const std::shared_ptr<chronosync::Socket>& syncSocket);
 
   virtual
   ~QueryAdapter();
@@ -249,30 +252,38 @@ protected:
   getQueryResultsName(std::shared_ptr<const ndn::Interest> interest,
                       const ndn::Name::Component& version);
 
+  std::string
+  getChronoSyncDigest();
+
 protected:
   typedef std::unordered_map<ndn::Name, const ndn::RegisteredPrefixId*> RegisteredPrefixList;
   // Handle to the Catalog's database
   std::shared_ptr<DatabaseHandler> m_databaseHandler;
+  const std::shared_ptr<chronosync::Socket>& m_socket;
 
   // mutex to control critical sections
   std::mutex m_mutex;
   // @{ needs m_mutex protection
   // The Queries we are currently writing to
-  std::map<std::string, std::shared_ptr<ndn::Data>> m_activeQueryToFirstResponse;
-
+  //std::map<std::string, std::shared_ptr<ndn::Data>> m_activeQueryToFirstResponse;
+  ndn::util::InMemoryStorageLru m_activeQueryToFirstResponse;
   ndn::util::InMemoryStorageLru m_cache;
+  std::string m_chronosyncDigest;
   // @}
   RegisteredPrefixList m_registeredPrefixList;
-  //std::vector<std::string> m_atmosColumns;
   ndn::Name m_catalogId; // should be replaced with the PK digest
   std::vector<std::string> m_filterCategoryNames;
 };
 
 template <typename DatabaseHandler>
 QueryAdapter<DatabaseHandler>::QueryAdapter(const std::shared_ptr<ndn::Face>& face,
-                                            const std::shared_ptr<ndn::KeyChain>& keyChain)
+                                            const std::shared_ptr<ndn::KeyChain>& keyChain,
+                                            const std::shared_ptr<chronosync::Socket>& syncSocket)
   : util::CatalogAdapter(face, keyChain)
+  , m_socket(syncSocket)
+  , m_activeQueryToFirstResponse(100000)
   , m_cache(250000)
+  , m_chronosyncDigest("0")
   , m_catalogId("catalogIdPlaceHolder") // initialize for unitests
 {
 }
@@ -345,7 +356,7 @@ QueryAdapter<DatabaseHandler>::onConfig(const util::ConfigSection& section,
       signingId = item->second.get_value<std::string>();
       if (signingId.empty()) {
         throw Error("Empty value for \"signingId\""
-                                " in \"query\" section");
+                    " in \"query\" section");
       }
     }
     if (item->first == "filterCategoryNames") {
@@ -363,37 +374,38 @@ QueryAdapter<DatabaseHandler>::onConfig(const util::ConfigSection& section,
       {
         if (subItem->first == "dbServer") {
           dbServer = subItem->second.get_value<std::string>();
-          if (dbServer.empty()){
-            throw Error("Invalid value for \"dbServer\""
-                                    " in \"query\" section");
-          }
         }
         if (subItem->first == "dbName") {
           dbName = subItem->second.get_value<std::string>();
-          if (dbName.empty()){
-            throw Error("Invalid value for \"dbName\""
-                                    " in \"query\" section");
-          }
         }
         if (subItem->first == "dbUser") {
           dbUser = subItem->second.get_value<std::string>();
-          if (dbUser.empty()){
-            throw Error("Invalid value for \"dbUser\""
-                                    " in \"query\" section");
-          }
         }
         if (subItem->first == "dbPasswd") {
           dbPasswd = subItem->second.get_value<std::string>();
-          if (dbPasswd.empty()){
-            throw Error("Invalid value for \"dbPasswd\""
-                                    " in \"query\" section");
-          }
         }
+      }
+
+      if (dbServer.empty()){
+        throw Error("Invalid value for \"dbServer\""
+                    " in \"query\" section");
+      }
+      if (dbName.empty()){
+        throw Error("Invalid value for \"dbName\""
+                    " in \"query\" section");
+      }
+      if (dbUser.empty()){
+        throw Error("Invalid value for \"dbUser\""
+                    " in \"query\" section");
+      }
+      if (dbPasswd.empty()){
+        throw Error("Invalid value for \"dbPasswd\""
+                    " in \"query\" section");
       }
     }
   }
 
-  if (m_filterCategoryNames.size() == 0) {
+  if (m_filterCategoryNames.empty()) {
     throw Error("Empty value for \"filterCategoryNames\" in \"query\" section");
   }
 
@@ -468,6 +480,7 @@ QueryAdapter<DatabaseHandler>::onQueryInterest(const ndn::InterestFilter& filter
     // @todo: return a nack
     return;
   }
+
   std::shared_ptr<const ndn::Interest> interestPtr = interest.shared_from_this();
 
   _LOG_DEBUG("Interest : " << interestPtr->getName());
@@ -502,7 +515,7 @@ QueryAdapter<DatabaseHandler>::onQueryResultsInterest(const ndn::InterestFilter&
 template <typename DatabaseHandler>
 void
 QueryAdapter<DatabaseHandler>::onFiltersInitializationInterest(const ndn::InterestFilter& filter,
-                                                           const ndn::Interest& interest)
+                                                               const ndn::Interest& interest)
 {
   _LOG_DEBUG(">> QueryAdapter::onFiltersInitializationInterest");
   std::shared_ptr<const ndn::Interest> interestPtr = interest.shared_from_this();
@@ -560,9 +573,9 @@ QueryAdapter<DatabaseHandler>::populateFiltersMenu(std::shared_ptr<const ndn::In
       m_cache.insert(*filterData);
       try {
         m_face->put(*filterData);
-      }// catch exceptions and log
+      }
       catch (std::exception& e) {
-        _LOG_DEBUG(e.what());
+        _LOG_ERROR(e.what());
       }
       m_mutex.unlock();
 
@@ -612,7 +625,7 @@ QueryAdapter<MYSQL>::getFiltersMenu(Json::Value& value)
       = atmos::util::MySQLPerformQuery(m_databaseHandler, getFilterSql,
                                        util::QUERY, success, errMsg);
     if (!success) {
-      _LOG_DEBUG(errMsg);
+      _LOG_ERROR(errMsg);
       value.clear();
       return;
     }
@@ -670,9 +683,9 @@ QueryAdapter<DatabaseHandler>::makeAckData(std::shared_ptr<const ndn::Interest> 
   ack->setFreshnessPeriod(ndn::time::milliseconds(10000));
 
   signData(*ack);
-#ifndef NDEBUG
-  _LOG_DEBUG(queryResultNameStr);
-#endif
+
+  _LOG_DEBUG("Make ACK : " << queryResultNameStr);
+
   return ack;
 }
 
@@ -688,9 +701,9 @@ QueryAdapter<DatabaseHandler>::sendNack(const ndn::Name& dataPrefix)
   nack->setFinalBlockId(ndn::Name::Component::fromSegment(segmentNo));
 
   signData(*nack);
-#ifndef NDEBUG
-  _LOG_DEBUG(ndn::Name(dataPrefix).appendSegment(segmentNo));
-#endif
+
+  _LOG_DEBUG("Send Nack: " << ndn::Name(dataPrefix).appendSegment(segmentNo));
+
   m_mutex.lock();
   m_cache.insert(*nack);
   m_mutex.unlock();
@@ -703,9 +716,9 @@ QueryAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlQuery,
                                         Json::Value& jsonValue)
 {
   _LOG_DEBUG(">> QueryAdapter::json2Sql");
-#ifndef NDEBUG
+
   _LOG_DEBUG(jsonValue.toStyledString());
-#endif
+
   if (jsonValue.type() != Json::objectValue) {
     return false;
   }
@@ -718,13 +731,13 @@ QueryAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlQuery,
     Json::Value value = (*iter);
 
     if (key == Json::nullValue || value == Json::nullValue) {
-      _LOG_DEBUG("null key or value in JsonValue");
+      _LOG_ERROR("Null key or value in JsonValue");
       return false;
     }
 
     // cannot convert to string
     if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
-      _LOG_DEBUG("malformed JsonQuery string");
+      _LOG_ERROR("Malformed JsonQuery string");
       return false;
     }
 
@@ -756,9 +769,9 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
                                                       bool& lastComponent)
 {
   _LOG_DEBUG(">> QueryAdapter::json2AutocompletionSql");
-#ifndef NDEBUG
+
   _LOG_DEBUG(jsonValue.toStyledString());
-#endif
+
   if (jsonValue.type() != Json::objectValue) {
     return false;
   }
@@ -771,13 +784,13 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
     Json::Value value = (*iter);
 
     if (key == Json::nullValue || value == Json::nullValue) {
-      _LOG_DEBUG("null key or value in JsonValue");
+      _LOG_ERROR("Null key or value in JsonValue");
       return false;
     }
 
     // cannot convert to string
     if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
-      _LOG_DEBUG("malformed JsonQuery string");
+      _LOG_ERROR("Malformed JsonQuery string");
       return false;
     }
 
@@ -838,9 +851,9 @@ QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQ
                                                          Json::Value& jsonValue)
 {
   _LOG_DEBUG(">> QueryAdapter::json2CompleteSearchSql");
-#ifndef NDEBUG
+
   _LOG_DEBUG(jsonValue.toStyledString());
-#endif
+
   if (jsonValue.type() != Json::objectValue) {
     return false;
   }
@@ -853,13 +866,13 @@ QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQ
     Json::Value value = (*iter);
 
     if (key == Json::nullValue || value == Json::nullValue) {
-      _LOG_DEBUG("null key or value in JsonValue");
+      _LOG_ERROR("Null key or value in JsonValue");
       return false;
     }
 
     // cannot convert to string
     if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
-      _LOG_DEBUG("malformed JsonQuery string");
+      _LOG_ERROR("Malformed JsonQuery string");
       return false;
     }
 
@@ -934,54 +947,70 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
     // no JSON query, send Nack?
     return;
   }
-  // check if the ACK is cached, if yes, respond with ACK
-  // ?? what if the results for now it NULL, but latter exist?
-  // For efficiency, do a double check. Once without the lock, then with it.
-  if (m_activeQueryToFirstResponse.find(jsonQuery) != m_activeQueryToFirstResponse.end()) {
-    m_mutex.lock();
-    { // !!! BEGIN CRITICAL SECTION !!!
-      // If this fails upon locking, we removed it during our search.
-      // An unusual race-condition case, which requires things like PIT aggregation to be off.
-      auto iter = m_activeQueryToFirstResponse.find(jsonQuery);
-      if (iter != m_activeQueryToFirstResponse.end()) {
-        m_face->put(*(iter->second));
-        m_mutex.unlock(); //escape lock
-        return;
-      }
-    } // !!!  END  CRITICAL SECTION !!!
-    m_mutex.unlock();
+
+  // the version should be replaced with ChronoSync state digest
+  ndn::name::Component version;
+
+  if(m_socket != nullptr) {
+    const ndn::ConstBufferPtr digestPtr = m_socket->getRootDigest();
+    std::string digestStr = ndn::toHex(digestPtr->buf(), digestPtr->size());
+    _LOG_DEBUG("Original digest" << m_chronosyncDigest);
+    _LOG_DEBUG("New digest : " << digestStr);
+    // if the m_chronosyncDigest and the rootdigest are not equal
+    if (digestStr != m_chronosyncDigest) {
+      // (1) update chronosyncDigest
+      // (2) clear all staled ACK data
+      m_mutex.lock();
+      m_chronosyncDigest = digestStr;
+      m_activeQueryToFirstResponse.erase(ndn::Name("/"));
+      m_mutex.unlock();
+      _LOG_DEBUG("Change digest to " << m_chronosyncDigest);
+    }
+    version = ndn::name::Component::fromEscapedString(digestStr);
   }
+  else {
+    version = ndn::name::Component::fromEscapedString(m_chronosyncDigest);
+  }
+
+  // try to respond with the inMemoryStorage
+  m_mutex.lock();
+  { // !!! BEGIN CRITICAL SECTION !!!
+    auto data = m_activeQueryToFirstResponse.find(interest->getName());
+    if (data) {
+      _LOG_DEBUG("Answer with Data in IMS : " << data->getName());
+      m_face->put(*data);
+      m_mutex.unlock();
+      return;
+    }
+  } // !!! END CRITICAL SECTION !!!
+  m_mutex.unlock();
 
   // 2) From the remainder of the ndn::Interest's ndn::Name, get the JSON out
   Json::Value parsedFromString;
   Json::Reader reader;
   if (!reader.parse(jsonQuery, parsedFromString)) {
     // @todo: send NACK?
-    _LOG_DEBUG("cannot parse the JsonQuery");
+    _LOG_ERROR("Cannot parse the JsonQuery");
     return;
   }
-
-  // the version should be replaced with ChronoSync state digest
-  const ndn::name::Component version
-    = ndn::name::Component::fromVersion(ndn::time::toUnixTimestamp(
-                                          ndn::time::system_clock::now()).count());
 
   std::shared_ptr<ndn::Data> ack = makeAckData(interest, version);
 
   m_mutex.lock();
   { // !!! BEGIN CRITICAL SECTION !!!
     // An unusual race-condition case, which requires things like PIT aggregation to be off.
-    auto iter = m_activeQueryToFirstResponse.find(jsonQuery);
-    if (iter != m_activeQueryToFirstResponse.end()) {
-      m_face->put(*(iter->second));
-      m_mutex.unlock(); // escape lock
+    auto data = m_activeQueryToFirstResponse.find(interest->getName());
+    if (data) {
+      m_face->put(*data);
+      m_mutex.unlock();
       return;
     }
+
     // This is where things are expensive so we save them for the lock
     // note that we ack the query with the cached ACK messages, but we should remove the ACKs
     // that conatin the old version when ChronoSync is updated
-    //m_activeQueryToFirstResponse.insert(std::pair<std::string,
-    //                                    std::shared_ptr<ndn::Data>>(jsonQuery, ack));
+    m_activeQueryToFirstResponse.insert(*ack);
+
     m_face->put(*ack);
   } // !!!  END  CRITICAL SECTION !!!
   m_mutex.unlock();
@@ -1038,19 +1067,19 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
                                      bool lastComponent)
 {
   _LOG_DEBUG(">> QueryAdapter::prepareSegments");
-#ifndef NDEBUG
+
   _LOG_DEBUG(sqlString);
-#endif
+
   std::string errMsg;
   bool success;
   // 4) Run the Query
   std::shared_ptr<MYSQL_RES> results
     = atmos::util::MySQLPerformQuery(m_databaseHandler, sqlString, util::QUERY, success, errMsg);
   if (!success)
-    _LOG_DEBUG(errMsg);
+    _LOG_ERROR(errMsg);
 
   if (!results) {
-    _LOG_DEBUG("NULL MYSQL_RES for" << sqlString);
+    _LOG_ERROR("NULL MYSQL_RES for" << sqlString);
 
     // @todo: throw runtime error or log the error message?
     return;
@@ -1058,9 +1087,7 @@ QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
 
   uint64_t resultCount = mysql_num_rows(results.get());
 
-#ifndef NDEBUG
   _LOG_DEBUG("Query resuls contain " << resultCount << "rows");
-#endif
 
   MYSQL_ROW row;
   uint64_t segmentNo = 0;
@@ -1119,11 +1146,9 @@ QueryAdapter<DatabaseHandler>::makeReplyData(const ndn::Name& segmentPrefix,
   if (lastComponent)
     entry["lastComponent"] = Json::Value(true);
 
-#ifndef NDEBUG
   _LOG_DEBUG("resultCount " << resultCount << ";"
              << "viewStart " << viewStart << ";"
              << "viewEnd " << viewEnd);
-#endif
 
   if (isAutocomplete) {
     entry["next"] = value;
@@ -1143,12 +1168,13 @@ QueryAdapter<DatabaseHandler>::makeReplyData(const ndn::Name& segmentPrefix,
   if (isFinalBlock) {
     data->setFinalBlockId(ndn::Name::Component::fromSegment(segmentNo));
   }
-#ifndef NDEBUG
+
   _LOG_DEBUG(segmentName);
-#endif
+
   signData(*data);
   return data;
 }
+
 
 } // namespace query
 } // namespace atmos

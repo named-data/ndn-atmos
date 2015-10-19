@@ -56,8 +56,8 @@ public:
 
   /**
    * Constructor
-   * @param face:      Face that will be used for NDN communications
-   * @param keyChain:  KeyChain that will be used for data signing
+   * @param face:       Face that will be used for NDN communications
+   * @param keyChain:   KeyChain that will be used for data signing
    */
   CatalogAdapter(const std::shared_ptr<ndn::Face>& face,
                  const std::shared_ptr<ndn::KeyChain>& keyChain);

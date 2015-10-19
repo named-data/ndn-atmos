@@ -24,6 +24,7 @@
 #include <memory>
 #include <getopt.h>
 #include <ndn-cxx/face.hpp>
+#include <ChronoSync/socket.hpp>
 
 #ifdef HAVE_LOG4CXX
   INIT_LOGGER("atmos-catalog::Main");
@@ -71,20 +72,26 @@ main(int argc, char** argv)
   std::shared_ptr<ndn::Face> face(new ndn::Face());
   std::shared_ptr<ndn::KeyChain> keyChain(new ndn::KeyChain());
 
+  // For now, share chronosync::Socket in both queryAdapter and publishAdapter
+  // to allow queryAdapter to get the digest.
+  // We may have to save digest in Database later
+  std::shared_ptr<chronosync::Socket> syncSocket;
+
   std::unique_ptr<atmos::util::CatalogAdapter>
-    queryAdapter(new atmos::query::QueryAdapter<MYSQL>(face, keyChain));
+    queryAdapter(new atmos::query::QueryAdapter<MYSQL>(face, keyChain, syncSocket));
   std::unique_ptr<atmos::util::CatalogAdapter>
-    publishAdapter(new atmos::publish::PublishAdapter<MYSQL>(face, keyChain));
+    publishAdapter(new atmos::publish::PublishAdapter<MYSQL>(face, keyChain, syncSocket));
 
   atmos::catalog::Catalog catalogInstance(face, keyChain, configFile);
-  catalogInstance.addAdapter(queryAdapter);
   catalogInstance.addAdapter(publishAdapter);
+  catalogInstance.addAdapter(queryAdapter);
 
   try {
     catalogInstance.initialize();
   }
   catch (std::exception& e) {
-    std::cout << e.what() << std::endl;
+    _LOG_ERROR(e.what());
+    return 1;
   }
 
 #ifndef NDEBUG
@@ -94,7 +101,8 @@ main(int argc, char** argv)
 #ifndef NDEBUG
   }
   catch (std::exception& e) {
-    _LOG_DEBUG(e.what());
+    _LOG_ERROR(e.what());
+    return 1;
   }
 #endif
 

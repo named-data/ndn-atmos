@@ -35,8 +35,9 @@ namespace tests{
   {
   public:
     QueryAdapterTest(const std::shared_ptr<ndn::util::DummyClientFace>& face,
-                     const std::shared_ptr<ndn::KeyChain>& keyChain)
-      : query::QueryAdapter<std::string>(face, keyChain)
+                     const std::shared_ptr<ndn::KeyChain>& keyChain,
+                     const std::shared_ptr<chronosync::Socket>& syncSocket)
+      : query::QueryAdapter<std::string>(face, keyChain, syncSocket)
     {
     }
 
@@ -131,21 +132,6 @@ namespace tests{
     }
 
     std::shared_ptr<const ndn::Data>
-    getDataFromActiveQuery(const std::string& jsonQuery)
-    {
-      m_mutex.lock();
-      if (m_activeQueryToFirstResponse.find(jsonQuery) != m_activeQueryToFirstResponse.end()) {
-        auto iter = m_activeQueryToFirstResponse.find(jsonQuery);
-        if (iter != m_activeQueryToFirstResponse.end()) {
-          m_mutex.unlock();
-          return iter->second;
-        }
-      }
-      m_mutex.unlock();
-      return std::shared_ptr<const ndn::Data>();
-    }
-
-    std::shared_ptr<const ndn::Data>
     getDataFromCache(const ndn::Interest& interest)
     {
       return m_cache.find(interest);
@@ -181,8 +167,8 @@ namespace tests{
       : face(makeDummyClientFace(io))
       , keyChain(new ndn::KeyChain())
       , databaseTable("cmip5")
-      , queryAdapterTest1(face, keyChain)
-      , queryAdapterTest2(face, keyChain)
+      , queryAdapterTest1(face, keyChain, syncSocket)
+      , queryAdapterTest2(face, keyChain, syncSocket)
     {
       std::string c1("activity"), c2("product"), c3("organization"), c4("model");
       std::string c5("experiment"), c6("frequency"), c7("modeling_realm"), c8("variable_name");
@@ -261,6 +247,7 @@ namespace tests{
   protected:
     std::shared_ptr<DummyClientFace> face;
     std::shared_ptr<ndn::KeyChain> keyChain;
+    std::shared_ptr<chronosync::Socket> syncSocket;
     std::string databaseTable;
     std::vector<std::string> nameFields;
     QueryAdapterTest queryAdapterTest1;

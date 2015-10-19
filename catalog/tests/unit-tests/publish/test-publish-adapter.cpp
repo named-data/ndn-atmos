@@ -35,8 +35,9 @@ namespace tests{
   {
   public:
     PublishAdapterTest(const std::shared_ptr<ndn::util::DummyClientFace>& face,
-                       const std::shared_ptr<ndn::KeyChain>& keyChain)
-      : publish::PublishAdapter<std::string>(face, keyChain)
+                       const std::shared_ptr<ndn::KeyChain>& keyChain,
+                       std::shared_ptr<chronosync::Socket>& syncSocket)
+      : publish::PublishAdapter<std::string>(face, keyChain, syncSocket)
     {
     }
 
@@ -111,8 +112,8 @@ namespace tests{
       : face(makeDummyClientFace(io))
       , keyChain(new ndn::KeyChain())
       , databaseTable("cmip5")
-      , publishAdapterTest1(face, keyChain)
-      , publishAdapterTest2(face, keyChain)
+      , publishAdapterTest1(face, keyChain, syncSocket)
+      , publishAdapterTest2(face, keyChain, syncSocket)
     {
       std::string cx("sha256"), c0("name"), c1("activity"), c2("product"), c3("organization");
       std::string c4("model"), c5("experiment"), c6("frequency"), c7("modeling_realm");
@@ -197,6 +198,7 @@ namespace tests{
   protected:
     std::shared_ptr<DummyClientFace> face;
     std::shared_ptr<ndn::KeyChain> keyChain;
+    std::shared_ptr<chronosync::Socket> syncSocket;
     std::vector<std::string> tableFields;
     std::string databaseTable;
     PublishAdapterTest publishAdapterTest1;

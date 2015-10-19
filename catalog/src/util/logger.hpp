@@ -34,6 +34,9 @@
 #define INIT_LOGGER(name) \
   static log4cxx::LoggerPtr staticModuleLogger = log4cxx::Logger::getLogger(name)
 
+#define _LOG_INFO(x) \
+  LOG4CXX_INFO(staticModuleLogger, x)
+
 #define _LOG_DEBUG(x) \
   LOG4CXX_DEBUG(staticModuleLogger, x)
 
@@ -49,6 +52,9 @@
 #define _LOG_ERROR(x) \
   LOG4CXX_ERROR(staticModuleLogger, x)
 
+#define _LOG_FATAL(x) \
+  LOG4CXX_FATAL(staticModuleLogger, x)
+
 #else // HAVE_LOG4CXX
 
 #define INIT_LOGGER(name)
@@ -56,7 +62,8 @@
 #define _LOG_FUNCTION_NOARGS
 #define _LOG_TRACE(x)
 #define INIT_LOGGERS(x)
-#define _LOG_ERROR(x)
+#define _LOG_ERROR(x) \
+  std::cerr << x << std::endl
 
 #ifdef _DEBUG
 
@@ -65,13 +72,18 @@
 #include <ndn-cxx/util/time.hpp>
 
 // to print out messages, must be in debug mode
+
 #define _LOG_DEBUG(x) \
-  std::clog << ndn::time::system_clock::now() << " " << std::this_thread::get_id() << \
-               " " << x << std::endl
+  std::clog << ndn::time::system_clock::now() << " " << x << std::endl
+
+#define _LOG_FATAL(x) \
+  std::clog << ndn::time::system_clock::now() << " " << x << std::endl
+
 
 #else // _DEBUG
 
 #define _LOG_DEBUG(x)
+#define _LOG_FATAL(x)
 
 #endif // _DEBUG
 

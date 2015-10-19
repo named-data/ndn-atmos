@@ -51,10 +51,6 @@ Catalog::onConfig(const util::ConfigSection& configSection,
     if (i->first == "prefix") {
       m_prefix.clear();
       m_prefix.append(i->second.get_value<std::string>());
-      if (m_prefix.empty()) {
-        throw Error("Empty value for \"prefix\""
-                                 " in \"general\" section");
-      }
     }
     if (i->first == "nameFields") {
       std::istringstream ss(i->second.get_value<std::string>());
@@ -67,10 +63,17 @@ Catalog::onConfig(const util::ConfigSection& configSection,
       m_databaseTable = i->second.get_value<std::string>();
     }
   }
-  if (m_nameFields.size() == 0) { // nameFields must not be empty
-    throw Error("Empty value for \"nameFields\""
-                             " in \"general\" section");
+
+  if (m_prefix.empty()) { // Catalog prefix must not be empty
+    throw Error("Empty value for \"prefix\""
+                " in \"general\" section");
   }
+
+  if (m_nameFields.empty()) { // nameFields must not be empty
+    throw Error("Empty value for \"nameFields\""
+                " in \"general\" section");
+  }
+
   if (m_databaseTable.empty()) {
     throw Error("Empty value for \"databaseTable\""
                 " in \"general\" section");
