@@ -38,8 +38,8 @@
           var el = $('<div class="treeExplorerNode"></div>');
           if (current.match(/\/$/)){
             el.attr('id', path + current);
-            el.append(['<div class="nodeContent"><a href="#', path, current, '">', current,
-              '</a>&nbsp;<button class="treeSearch btn btn-success btn-xs">Search from here</button></div>'].join(""));
+            el.append(['<div class="nodeContent"><a class="treeExplorerExpander"></a><a class="treeSearch" href="#', path, current, '">', current,
+              '</a></div>'].join(""));
           } else {
             el.addClass('file');
             el.text(current);
@@ -50,7 +50,7 @@
 
       var scope = this;
 
-      tree.on('click', '.treeExplorerNode > .nodeContent > a', function(e){
+      tree.on('click', '.treeExplorerExpander', function(e){
         if (!scope.settings.autoScroll){
           e.preventDefault();
         }

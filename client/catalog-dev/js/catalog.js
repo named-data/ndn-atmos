@@ -170,9 +170,25 @@ var Atmos = (function(){
       scope.autoComplete(path, function(data){
         var list = data.next;
         var last = (data.lastComponent === true);
+
+        if (last) {
+          console.log("Redirecting last element request to a search.");
+          scope.clearResults();
+          scope.query(scope.catalog, {'??': path},
+          function(interest, data){
+            console.log("Search response", interest, data);
+            scope.name = data.getContent().toString().replace(/[\n\0]+/g, '');
+            scope.getResults(0);
+          }, function(interest){
+            console.warn("Failed to retrieve final component.", interest, path);
+            scope.createAlert("Failed to request final component. " + path + " See console for details.");
+          });
+          return; //Don't call the callback
+        }
+
         console.log("Autocomplete response", list);
         callback(list.map(function(element){
-          return (path == "/"?"/":"") + element + (!last?"/":"");
+          return (path == "/"?"/":"") + element + "/";
         }));
       })
     });
@@ -184,7 +200,7 @@ var Atmos = (function(){
 
       var path = t.parent().parent().attr('id');
 
-      console.log("Stringing tree search:", path);
+      console.log("Tree search:", path);
 
       scope.query(scope.catalog, {'??': path},
       function(interest, data){ //Success

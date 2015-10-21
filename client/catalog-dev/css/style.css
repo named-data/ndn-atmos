@@ -143,7 +143,6 @@ body#body {}
 
 .treeExplorer .treeExplorerNode .nodeContent {
   display: inline-block;
-  min-height: 24px;
 }
 
 .treeExplorer .treeExplorerNode > .nodeChildren {
@@ -154,30 +153,22 @@ body#body {}
   display: block;
 }
 
-.treeExplorer .treeExplorerNode::before {
+.treeExplorer .treeExplorerExpander::before {
   font-family: "Glyphicons Halflings";
   content: "\e080";
   color: gray;
 }
 
-.treeExplorer .treeExplorerNode.open::before {
+.treeExplorer .open > .nodeContent > .treeExplorerExpander::before {
   content: "\e114";
 }
 
-.treeExplorer .treeExplorerNode.file {
+.treeExplorer .file > .nodeContent > .treeExplorerExpander {
   cursor: default;
 }
 
-.treeExplorer .treeExplorerNode.file::before {
+.treeExplorer .file > .nodeContent > .treeExplorerExpander::before {
   content: "\e022"
-}
-
-.treeExplorer .treeSearch{
-  display: none;
-}
-
-.treeExplorer .nodeContent:hover > .treeSearch {
-  display: inline-block;
 }
 
 #popup {
