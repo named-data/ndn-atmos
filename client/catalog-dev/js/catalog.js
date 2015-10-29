@@ -24,6 +24,22 @@
       });
     })
   ]).then(function(){
+
+    var getParameterByName = function(name){
+          name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
+              var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
+                  results = regex.exec(location.search);
+            return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+    }
+
+    //Overwrite config if present. Any failure will just cause this to be skipped.
+    try{
+      var configParam = JSON.parse(getParameterByName('config'));
+      config = jQuery.extend(true, config, configParam);
+    } catch(e){
+      console.warn("Failure in config overwrite, skipping.", e);
+    }
+
     new Atmos(config);
   }, function(){
     console.error("Failed to initialize!");
