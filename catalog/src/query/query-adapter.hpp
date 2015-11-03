@@ -522,10 +522,24 @@ QueryAdapter<DatabaseHandler>::onFiltersInitializationInterest(const ndn::Intere
 
   _LOG_DEBUG("Interest : " << interestPtr->getName());
 
-  // TODO: save the content in memory, first check the memory, if not exists, start thread to generate it
-  // Note that if ChronoSync state changes, we need to clear the saved value, and regenerate it
+  if(m_socket != nullptr) {
+    const ndn::ConstBufferPtr digestPtr = m_socket->getRootDigest();
+    std::string digestStr = ndn::toHex(digestPtr->buf(), digestPtr->size());
+    _LOG_DEBUG("Original digest :" << m_chronosyncDigest);
+    _LOG_DEBUG("New digest : " << digestStr);
+    // if the m_chronosyncDigest and the rootdigest are not equal
+    if (digestStr != m_chronosyncDigest) {
+      // (1) update chronosyncDigest
+      // (2) clear all staled ACK data
+      m_mutex.lock();
+      m_chronosyncDigest = digestStr;
+      m_activeQueryToFirstResponse.erase(ndn::Name("/"));
+      m_mutex.unlock();
+      _LOG_DEBUG("Change digest to " << m_chronosyncDigest);
+    }
+  }
 
-  auto data = m_cache.find(interest.getName());
+  auto data = m_activeQueryToFirstResponse.find(interest.getName());
   if (data) {
     m_face->put(*data);
   }
@@ -551,8 +565,8 @@ QueryAdapter<DatabaseHandler>::populateFiltersMenu(std::shared_ptr<const ndn::In
   const std::string filterValue = fastWriter.write(filters);
 
   if (!filters.empty()) {
-    ndn::Name filterDataName(interest->getName());
-    filterDataName.append("stateVersion");// TODO: should replace with a state version
+    // use /<prefix>/filters-initialization/<seg> as data name
+    ndn::Name filterDataName(interest->getName().getPrefix(-1));
 
     const char* payload = filterValue.c_str();
     size_t payloadLength = filterValue.size();
@@ -562,7 +576,8 @@ QueryAdapter<DatabaseHandler>::populateFiltersMenu(std::shared_ptr<const ndn::In
       payloadLength = PAYLOAD_LIMIT;
       ndn::Name segmentName = ndn::Name(filterDataName).appendSegment(seqNo);
       std::shared_ptr<ndn::Data> filterData = std::make_shared<ndn::Data>(segmentName);
-      filterData->setFreshnessPeriod(ndn::time::milliseconds(10000));
+      // freshnessPeriod 0 means permanent?
+      filterData->setFreshnessPeriod(ndn::time::milliseconds(10));
       filterData->setContent(reinterpret_cast<const uint8_t*>(payload + startIndex), payloadLength);
 
       signData(*filterData);
@@ -570,7 +585,9 @@ QueryAdapter<DatabaseHandler>::populateFiltersMenu(std::shared_ptr<const ndn::In
       _LOG_DEBUG("Populate Filter Data :" << segmentName);
 
       m_mutex.lock();
-      m_cache.insert(*filterData);
+      // save the filter results in the activeQueryToFirstResponse structure
+      // when version changes, the activeQueryToFirstResponse should be cleaned
+      m_activeQueryToFirstResponse.insert(*filterData);
       try {
         m_face->put(*filterData);
       }
@@ -586,13 +603,13 @@ QueryAdapter<DatabaseHandler>::populateFiltersMenu(std::shared_ptr<const ndn::In
 
     ndn::Name lastSegment = ndn::Name(filterDataName).appendSegment(seqNo);
     std::shared_ptr<ndn::Data> filterData = std::make_shared<ndn::Data>(lastSegment);
-    filterData->setFreshnessPeriod(ndn::time::milliseconds(10000));
+    filterData->setFreshnessPeriod(ndn::time::milliseconds(10));
     filterData->setContent(reinterpret_cast<const uint8_t*>(payload + startIndex), payloadLength);
     filterData->setFinalBlockId(ndn::Name::Component::fromSegment(seqNo));
 
     signData(*filterData);
     m_mutex.lock();
-    m_cache.insert(*filterData);
+    m_activeQueryToFirstResponse.insert(*filterData);
     m_face->put(*filterData);
     m_mutex.unlock();
   }
@@ -954,7 +971,7 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
   if(m_socket != nullptr) {
     const ndn::ConstBufferPtr digestPtr = m_socket->getRootDigest();
     std::string digestStr = ndn::toHex(digestPtr->buf(), digestPtr->size());
-    _LOG_DEBUG("Original digest" << m_chronosyncDigest);
+    _LOG_DEBUG("Original digest " << m_chronosyncDigest);
     _LOG_DEBUG("New digest : " << digestStr);
     // if the m_chronosyncDigest and the rootdigest are not equal
     if (digestStr != m_chronosyncDigest) {

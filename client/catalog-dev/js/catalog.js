@@ -751,7 +751,8 @@ var Atmos = (function(){
 
       d.push(data.getContent().toString());
 
-      if (interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment()){
+      if (data.getMetaInfo().getFinalBlockId().value.length !== 0 &&
+          interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment()){
         callback(d.join(""));
       } else {
         request(interest.getName().get(-1).toSegment() + 1);
