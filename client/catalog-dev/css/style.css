@@ -207,10 +207,9 @@ table:empty ~ .sk-cube-grid {
   position: relative;
 }
 
-.absBotRight {
-  position: absolute;
-  bottom: 0;
-  right: 0;
+.floatRight {
+  float: right;
+  margin-right: 15px;
 }
 
 .fade {
@@ -238,4 +237,26 @@ table:empty ~ .sk-cube-grid {
   max-height: 800px;
   word-wrap: normal;
   overflow: auto;
+}
+
+#requestForm button {
+  margin-bottom: 5px;
+}
+
+#templates {
+  display: none;
+}
+
+#subsetVariables > .row:not(:last-child) {
+  margin-bottom: 5px;
+}
+
+#subsetVariables {
+  transition: opacity 1s, margin 1s, padding 1s;
+}
+
+#subsetVariables:empty {
+  opacity: 0;
+  margin: 0;
+  padding: 0;
 }

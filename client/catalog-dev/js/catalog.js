@@ -251,6 +251,14 @@ var Atmos = (function(){
       e.preventDefault();
     });
 
+    this.resultTable.on('click', '.subsetButton', function(){
+      var metaData = $(this).siblings('pre').text();
+      var exp = /netcdf ([\w-]+)/;
+      var match = exp.exec(metaData);
+      var filename = match[0].replace(/netcdf /,'') + '.nc';
+      scope.request(null, filename);
+    });
+
   }
 
   Atmos.prototype.clearResults = function(){
@@ -393,6 +401,8 @@ var Atmos = (function(){
       this.resultMenu.find('.previous').removeClass('disabled');
     }
 
+    $.scrollTo("#results", 500, {interrupt: true});
+
   }
 
   Atmos.prototype.getResults = function(index){
@@ -400,8 +410,6 @@ var Atmos = (function(){
     if ($('#results').hasClass('hidden')){
       $('#results').removeClass('hidden').slideDown();
     }
-
-    $.scrollTo("#results", 500, {interrupt: true});
 
     if ((this.results.length === this.resultCount) || (this.resultsPerPage * (index + 1) < this.results.length)){
       //console.log("We already have index", index);
@@ -524,6 +532,7 @@ var Atmos = (function(){
    * Requests all of the names represented by the buttons in the elements list.
    *
    * @param elements {Array<jQuery>} A list of the table row elements
+   * @param subsetFileName {String} If present then do a subsetting request instead.
    */
   Atmos.prototype.request = function(){
 
@@ -532,30 +541,51 @@ var Atmos = (function(){
     var certificateName;
     var keyAdded = false;
 
-    return function(elements){
+    return function(elements, subsetFilename){
 
       var names = [];
-      var destination = $('#requestDest .active').text();
-      $(elements).find('>*:nth-child(2)').each(function(){
+      $(elements).find('.metaDataLink').each(function(){
         var name = $(this).text();
         names.push(name);
-      });//.append('<span class="badge">Requested!</span>')
-      //Disabling the checkbox doesn't make sense anymore with the ability to request to multiple destinations.
-      //$(elements).find('.resultSelector').prop('disabled', true).prop('checked', false);
+      });
+
+      var subset = false;
+
+      if (!subsetFilename){
+        $('#subsetting').hide();
+      } else {
+        $('#subsetting').show();
+        subset = true;
+      }
 
       var scope = this;
       this.requestForm.on('submit', function(e){ //This will be registered for the next submit from the form.
         e.preventDefault();
 
+        $('#request .alert').remove();
+
+        var variables = [];
+        if (subset){
+          $('#subsetVariables .row').each(function(){
+            var t = $(this);
+            var values = {};
+            t.find('.values input').each(function(){
+              var t = $(this);
+              values[t.attr('name')] = t.val();
+            });
+            variables.push({variable: t.find('.variable').val(), values: values});
+          });
+        }
+
         //Form checking
         var dest = scope.requestForm.find('#requestDest .active');
         if (dest.length !== 1){
-          $('#requestForm').append($('<div class="alert alert-warning">A destination is required!' + closeButton + '<div>'));
+          var alert = $('<div class="alert alert-warning">A destination is required!' + closeButton + '<div>');
+          $('#request > .panel-body').append(alert);
           return;
         }
 
-        $('#request').modal('hide')//Initial params are ok. We can close the form.
-        .remove('.alert') //Remove any alerts
+        $('#request').modal('hide');//Initial params are ok. We can close the form.
 
         scope.cleanRequestForm();
 
@@ -600,8 +630,14 @@ var Atmos = (function(){
             //This function will exist until the page exits but will likely only be used once.
 
             var data = new Data(interest.getName());
-            var content = JSON.stringify(names);
-            data.setContent(content);
+            var content;
+            if (subset){
+              content = JSON.stringify({name: subsetFilename, subset: variables});
+            } else {
+              content = JSON.stringify(names);
+            }
+            //Blob breaks the data! Don't use it
+            data.setContent(content); //TODO Packetize this.
             keyChain.sign(data, certificateName);
 
             try {
@@ -616,7 +652,6 @@ var Atmos = (function(){
           }, function(prefix){ //On fail
             scope.createAlert("Failed to register the retrieval URI! See console for details.", "alert-danger");
             console.error("Failed to register URI:", prefix.toUri(), prefix);
-
           }, function(prefix, registeredPrefixId){ //On success
             var name = new Name(dest.text());
             name.append(prefix);
@@ -717,8 +752,13 @@ var Atmos = (function(){
   /**
    * This function retrieves all segments in order until it knows it has reached the last one.
    * It then returns the final joined result.
+   * 
+   * @param prefix {String|Name} The ndn name we are retrieving.
+   * @param callback {function(String)} if successful, will call the callback with a string of data.
+   * @param failure {function(Interest)} if unsuccessful, will call failure with the last failed interest.
+   * @param stop {boolean} stop if no finalBlock.
    */
-  Atmos.prototype.getAll = function(prefix, callback, failure){
+  Atmos.prototype.getAll = function(prefix, callback, failure, stop){
 
     var scope = this;
     var d = [];
@@ -726,7 +766,7 @@ var Atmos = (function(){
     var count = 3;
     var retry = function(interest){
       if (count === 0){
-        console.log("Failed to 'getAll' after 3 attempts", interest);
+        console.log("Failed to 'getAll' after 3 attempts", interest.toUri(), interest);
         failure(interest);
       } else {
         count--;
@@ -751,8 +791,11 @@ var Atmos = (function(){
 
       d.push(data.getContent().toString());
 
-      if (data.getMetaInfo().getFinalBlockId().value.length !== 0 &&
-          interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment()){
+      var hasFinalBlock = data.getMetaInfo().getFinalBlockId().value.length === 0;
+      var finalBlockStop = hasFinalBlock && stop;
+
+      if (finalBlockStop ||
+      (!hasFinalBlock && interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment())){
         callback(d.join(""));
       } else {
         request(interest.getName().get(-1).toSegment() + 1);
@@ -768,6 +811,9 @@ var Atmos = (function(){
     $('#requestDest').prev().removeClass('btn-success').addClass('btn-default');
     $('#requestDropText').text('Destination');
     $('#requestDest .active').removeClass('active');
+    $('#subsetMenu').attr('class', 'collapse');
+    $('#subsetVariables').empty();
+    $('#request .alert').alert('close').remove();
   }
 
   Atmos.prototype.setupRequestForm = function(){
@@ -796,49 +842,23 @@ var Atmos = (function(){
       $('#requestDest').prev().removeClass('btn-default').addClass('btn-success');
     });
 
-    //This code will remain unused until users must use their own keys instead of the demo key.
-//    var scope = this;
+    var addVariable = function(selector){
+      var ele = $(selector).clone().attr('id','');
+      ele.find('.close').click(function(){
+        ele.remove();
+      });
+      $('#subsetVariables').append(ele);
+    };
 
-//    var warning = '<div class="alert alert-warning">' + closeButton + '<div>';
-
-//    var handleFile = function(e){
-//      var t = $(this);
-//      if (e.target.files.length > 1){
-//        var el = $(warning);
-//        t.append(el.append("We are looking for a single file, we will try the first only!"));
-//      } else if (e.target.files.length === 0) {
-//        var el = $(warning.replace("alert-warning", "alert-danger"));
-//        t.append(el.append("No file was supplied!"));
-//        return;
-//      }
-
-//      var reader = new FileReader();
-//      reader.onload = function(e){
-//        var key;
-//        try {
-//          key = JSON.parse(e.target.result);
-//        } catch (e) {
-//          console.error("Could not parse the key! (", key, ")");
-//          var el = $(warning.replace("alert-warning", "alert-danger"));
-//          t.append(el.append("Failed to parse the key file, is it a valid json key?"));
-//        }
-
-//        if (!key.DEFAULT_RSA_PUBLIC_KEY_DER || !key.DEFAULT_RSA_PRIVATE_KEY_DER) {
-//          console.warn("Invalid key", key);
-//          var el = $(warning.replace("alert-warning", "alert-danger"));
-//          t.append(el.append("Failed to parse the key file, it is missing required attributes."));
-//        }
-
-
-//      };
-
-//    }
-
-//    this.requestForm.find('#requestDrop').on('dragover', function(e){
-//      e.dataTransfer.dropEffect = 'copy';
-//    }).on('drop', handleFile);
-
-//    this.requestForm.find('input[type=file]').change(handleFile);
+    $('#subsetAddVariableBtn').click(function(){
+      addVariable('#customTemplate');
+    });
+    $('#subsetAddTimeVariable').click(function(){
+      addVariable('#timeTemplate');
+    });
+    $('#subsetAddLocVariable').click(function(){
+      addVariable('#locationTemplate');
+    });
 
   }
 
@@ -849,8 +869,12 @@ var Atmos = (function(){
     return function(element) {
       var name = $(element).text();
 
+      ga('send', 'event', 'request', 'metaData');
+
+      var subsetButton = '<button class="btn btn-default subsetButton" type="button">Subset</button>';
+
       if (cache[name]) {
-        return ['<pre class="metaData">', cache[name], '</pre>'].join('');
+        return [subsetButton, '<pre class="metaData">', cache[name], '</pre>'].join('');
       }
 
       var prefix = new Name(name).append("metadata");
@@ -860,7 +884,10 @@ var Atmos = (function(){
       this.getAll(prefix, function(data){
         var el = $('<pre class="metaData"></pre>');
         el.text(data);
-        $('#' + id).remove('span').append(el);
+        var container = $('<div></div>');
+        container.append($(subsetButton));
+        container.append(el);
+        $('#' + id).empty().append(container);
         cache[name] = data;
       }, function(interest){
         $('#' + id).text("The metadata is unavailable for this name.");

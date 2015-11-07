@@ -33,6 +33,53 @@
 </head>
 
 <body id="body">
+
+  <div id="templates">
+    <div class="row" id="timeTemplate">
+      <button class="col-xs-1 close" type="button">&times;</button>
+      <div class="col-xs-4">
+        <input type="text" class="form-control variable" value="time">
+      </div>
+      <div class="col-xs-7 values">
+        <input type="datetime" class="form-control" name="start" placeholder="Start">
+        <input type="datetime" class="form-control" name="end" placeholder="End">
+      </div>
+    </div>
+    <div class="row" id="locationTemplate">
+      <button class="col-xs-1 close" type="button">&times;</button>
+      <div class="col-xs-4">
+        <input type="text" class="form-control variable" value="coord">
+      </div>
+      <div class="col-xs-7 values">
+        <div class="input-group">
+          <input type="number" class="form-control" name="startLat" placeholder="Start Latitude">
+          <span class="input-group-addon">&deg; North</span>
+        </div>
+        <div class="input-group">
+          <input type="number" class="form-control" name="startLong" placeholder="Start Longitude">
+          <span class="input-group-addon">&deg; East</span>
+        </div>
+        <div class="input-group">
+          <input type="number" class="form-control" name="endLat" placeholder="End Latitude">
+          <span class="input-group-addon">&deg; North</span>
+        </div>
+        <div class="input-group values">
+          <input type="number" class="form-control" name="endLong" placeholder="End Longitude">
+          <span class="input-group-addon">&deg; East</span>
+        </div>
+      </div>
+    </div>
+    <div class="row" id="customTemplate">
+      <button class="col-xs-1 close" type="button">&times;</button>
+      <div class="col-xs-4">
+        <input type="text" class="form-control variable" placeholder="Variable Name">
+      </div>
+      <div class="col-xs-7 values">
+        <input type="text" class="form-control" name="value" placeholder="Custom Restriction">
+      </div>
+    </div>
+  </div>
+
   <header>
     <div class="navbar navbar-inverse navbar-static-top container-fluid">
       <div class="navbar-header">
@@ -50,14 +97,18 @@
 
     <div class="row">
 
-      <div  class="col-sm-12 col-md-12">
+      <div class="col-sm-12 col-md-12">
 
         <div id="alerts"></div>
 
         <div class="panel panel-info tab-pane fade in active" id="filterSearch">
           <div class="panel-heading">Filter Based Search</div>
           <div class="panel-body">
-            <div class="col-sm-3 col-md-2 sidebar">
+            <div>
+              <div id="filters"></div>
+              <button id="searchButton" class="btn btn-primary right-fix">Search</button>
+            </div>
+            <div>
               <div class="panel panel-primary">
                 <div class="panel-heading">
                   <span>Filter Categories</span>
@@ -66,10 +117,6 @@
                   <ul id="side-menu" class="nav nav-pills nav-stacked"></ul>
                 </div>
               </div>
-            </div>
-            <div class="col-sm-9 col-md-10">
-              <div id="filters"></div>
-              <button id="searchButton" class="btn btn-primary right-fix">Search</button>
             </div>
           </div>
         </div>
@@ -80,9 +127,7 @@
             <form class="form-inline" id="searchBar">
               <div class="form-group">
                 <div class="input-group">
-                  <input id="search" placeholder="Enter a path (Ex: /CMIP5)"
-                   type="text" class="form-control"
-                   title="This bar is for doing a tab completion like path completion. Press tab, enter, or click AutoComplete to begin your search.">
+                  <input id="search" placeholder="Enter a path (Ex: /CMIP5)" type="text" class="form-control">
                   <div class="input-group-btn">
                     <button id="autoCompleteSearch" type="submit" class="btn btn-primary">Search</button>
                   </div>
@@ -183,6 +228,19 @@
             </button>
             <ul id="requestDest" class="dropdown-menu"></ul>
           </div>
+          <div class="panel panel-default" id="subsetting">
+            <div class="panel-heading">
+              <a data-toggle="collapse" href="#subsetMenu">Subsetting</a>
+            </div>
+            <div class="panel-collapse collapse" id="subsetMenu">
+              <div class="panel-body">
+                <div id="subsetVariables" class="well"></div>
+                <button type="button" class="btn btn-default" id="subsetAddVariableBtn">Add Variable</button>
+                <button type="button" class="btn btn-default" id="subsetAddTimeVariable">Add Time Variable</button>
+                <button type="button" class="btn btn-default" id="subsetAddLocVariable">Add Location Variable</button>
+              </div>
+            </div>
+          </div>
           <!-- Disabled For Demo
           <div class="form-group">
             <label>Authentication Key</label>
@@ -191,9 +249,11 @@
           </div>
           <div id="requestDrop" class="well">You can also drop your key here instead of using the input above.</div>
           -->
-          <div class="absBotRight">
-            <button type="submit" class="btn btn-primary">Submit</button>
-            <button id="requestCancel" type="button" class="btn btn-default">Cancel</button>
+          <div class="row">
+            <div class="floatRight">
+              <button type="submit" class="btn btn-primary">Submit</button>
+              <button id="requestCancel" type="button" class="btn btn-default">Cancel</button>
+            </div>
           </div>
         </form>
       </div>
