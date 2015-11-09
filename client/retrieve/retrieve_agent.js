@@ -85,14 +85,22 @@ RetrieveData.prototype.onUiData = function(Interest, data){
     for (var entry in payload) {
         //FIXME: if files exist locally, don't pull them.
         //FIXME: What if data is more than one packet? Make the UI create packets upto a certain size
-        console.log(payload[entry]); //"aa", bb", "cc"
+        console.log("Object to request: ", payload[entry]); //"aa", bb", "cc"
         var outgoingInterestName = new ndn.Name(payload[entry]);
-        this.face.expressInterest(outgoingInterestName, this.onData.bind(this),
-                                 this.onTimeout.bind(this));
-
+        for(var outgoingSegmentNum = 0; outgoingSegmentNum < this.pipelineSize; outgoingSegmentNum++) {
+            console.log("Expressing Interest: ", outgoingInterestName.getName());
+            if(outgoingSegmentNum == 0){
+                this.face.expressInterest(outgoingInterestName.appendSegment(outgoingSegmentNum), this.onData.bind(this),
+                    this.onTimeout.bind(this));
+            }
+            else {
+                this.face.expressInterest(outgoingInterestName.getPrefix(-1).appendSegment(outgoingSegmentNum), this.onData.bind(this),
+                    this.onTimeout.bind(this));
+            }
 
         }
     }
+}
 
 
 RetrieveData.prototype.onData = function(interest, data) {
@@ -111,7 +119,7 @@ RetrieveData.prototype.onData = function(interest, data) {
     //fetch the actual data
     if (segment === 0){
         this.retransmissionDict[dataName] = 0;
-        console.log("Logged data segment" + dataName);
+        console.log("Logged first data segment" + dataName.getName());
         fs.writeFile(dataFileName, payload, function(err){
             if(err){
                 return console.log(err);
@@ -119,6 +127,7 @@ RetrieveData.prototype.onData = function(interest, data) {
         });
     }
     else{
+//        console.log("Logged data segment" + dataName.getName());
         fs.appendFile(dataFileName, payload, function(err){
             if(err){
                 return console.log(err);
