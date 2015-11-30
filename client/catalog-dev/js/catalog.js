@@ -332,29 +332,27 @@ var Atmos = (function(){
       interest.setInterestLifetimeMilliseconds(1500);
       interest.setMustBeFresh(true);
 
-      var count = 3;
-
-      var run = function(){
-
-        if (--count === 0){
-          console.warn("Interest timed out!", interest);
-          scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
-          return;
-        }
-
+      async.retry(4, function(done){
         scope.face.expressInterest(interest,
         function(interest, data){
 
           if (data.getContent().length !== 0){
             callback(JSON.parse(data.getContent().toString().replace(/[\n\0]/g, "")));
+            done();
           } else {
             callback([]);
+            done();
           }
 
-        }, run);
-      }
-
-      run();
+        }, function(){
+          done("Failed attempt to request data.")
+        });
+      }, function(err, results){
+        if (err){
+          console.warn("Interest timed out!", interest);
+          scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
+        }
+      });
 
     }, function(interest){
       console.error("Request failed! Timeout", interest);
@@ -430,46 +428,56 @@ var Atmos = (function(){
     var scope = this;
 
     var interest = new Interest(first)
-    interest.setInterestLifetimeMilliseconds(5000);
+    interest.setInterestLifetimeMilliseconds(1500);
     interest.setMustBeFresh(true);
 
-    this.face.expressInterest(interest,
-      function(interest, data){ //Response
+    async.retry(4, function(done){
+      this.face.expressInterest(interest,
+        function(interest, data){ //Response
 
-        if (data.getContent().length === 0){
-          scope.resultMenu.find('.totalResults').text(0);
-          scope.resultMenu.find('.pageNumber').text(0);
-          scope.resultMenu.find('.pageLength').text(0);
-          console.log("Empty response.");
-          return;
+          if (data.getContent().length === 0){
+            scope.resultMenu.find('.totalResults').text(0);
+            scope.resultMenu.find('.pageNumber').text(0);
+            scope.resultMenu.find('.pageLength').text(0);
+            console.log("Empty response.");
+            scope.resultTable.html("<tr><td>Empty response. This usually means no results.</td></tr>");
+            return;
+          }
+
+          var content = JSON.parse(data.getContent().toString().replace(/[\n\0]/g,""));
+
+          if (!content.results){
+            scope.resultMenu.find('.totalResults').text(0);
+            scope.resultMenu.find('.pageNumber').text(0);
+            scope.resultMenu.find('.pageLength').text(0);
+            console.log("No results were found!");
+            scope.resultTable.html("<tr><td>No Results</td></tr>");
+            return;
+          }
+
+          scope.results = scope.results.concat(content.results);
+
+          scope.resultCount = content.resultCount;
+
+          scope.resultMenu.find('.totalResults').text(scope.resultCount);
+
+          scope.page = index;
+
+          scope.getResults(index); //Keep calling this until we have enough data.
+
+          done();
+
+        },
+        function(interest){ //Timeout
+          done("Failed to request results.");
         }
-
-        var content = JSON.parse(data.getContent().toString().replace(/[\n\0]/g,""));
-
-        if (!content.results){
-          scope.resultMenu.find('.totalResults').text(0);
-          scope.resultMenu.find('.pageNumber').text(0);
-          scope.resultMenu.find('.pageLength').text(0);
-          console.log("No results were found!");
-          return;
-        }
-
-        scope.results = scope.results.concat(content.results);
-
-        scope.resultCount = content.resultCount;
-
-        scope.resultMenu.find('.totalResults').text(scope.resultCount);
-
-        scope.page = index;
-
-        scope.getResults(index); //Keep calling this until we have enough data.
-
-      },
-      function(interest){ //Timeout
+      );
+    }, function(err){
+      if (err){
         console.error("Failed to retrieve results: timeout", interest);
-        scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
+        scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
       }
-    );
+    });
 
   }
 
@@ -486,15 +494,19 @@ var Atmos = (function(){
     queryInterest.setMustBeFresh(true);
 
     var face = this.face;
-    var retry = 3;
-    var run = function(interest){
-      if (--retry === 0){
+
+    async.retry(4, function(done){
+      face.expressInterest(queryInterest, function(interest, data){
+        callback(interest, data);
+        done();
+       }, function(interest){
+         done("Failed attempt to query results", interest);
+       });
+    }, function(err, interest){
+      if (err){
         timeout(interest);
-      } else {
-        face.expressInterest(queryInterest, callback, run);
       }
-    }
-    run();
+    });
 
   }
 
@@ -657,23 +669,24 @@ var Atmos = (function(){
             name.append(prefix);
             var interest = new Interest(name);
             interest.setInterestLifetimeMilliseconds(1500);
-            var count = 3;
-            var run = function(i2){
 
-              if (--count === 0) {
-                console.error("Request for", name.toUri(), "timed out (3 times).", i2);
-                scope.createAlert("Request for " + name.toUri() + " timed out after 3 attempts. This means that the retrieve failed! See console for more details.");
-                return;
-              }
-
+            async.retry(4, function(done){
               scope.face.expressInterest(interest,
                 function(interest, data){ //Success
                   console.log("Request for", name.toUri(), "succeeded.", interest, data);
+                  done();
                 },
-                run
+                function(){
+                  done("Failed to request from retrieve agent.");
+                }
               );
-            }
-            run();
+            }, function(err){
+              if (err){
+                console.error("Request for", name.toUri(), "timed out (3 times).", interest);
+                scope.createAlert("Request for " + name.toUri() + " timed out after 3 attempts. This means that the retrieve failed! See console for more details.");
+              }
+            });
+
           }
         );
 
@@ -752,7 +765,7 @@ var Atmos = (function(){
   /**
    * This function retrieves all segments in order until it knows it has reached the last one.
    * It then returns the final joined result.
-   * 
+   *
    * @param prefix {String|Name} The ndn name we are retrieving.
    * @param callback {function(String)} if successful, will call the callback with a string of data.
    * @param failure {function(Interest)} if unsuccessful, will call failure with the last failed interest.
@@ -763,27 +776,32 @@ var Atmos = (function(){
     var scope = this;
     var d = [];
 
-    var count = 3;
-    var retry = function(interest){
-      if (count === 0){
-        console.log("Failed to 'getAll' after 3 attempts", interest.toUri(), interest);
-        failure(interest);
-      } else {
-        count--;
-        request(interest.getName().get(-1).toSegment());
-      }
-    }
+    var name = new Name(prefix);
+    var segment = 0;
 
-    var request = function(segment){
+    var request = function(){
 
-      var name = new Name(prefix);
-      name.appendSegment(segment);
+      var n2 = new Name(name);
+      n2.appendSegment(segment);
 
-      var interest = new Interest(name);
+      var interest = new Interest(n2);
       interest.setInterestLifetimeMilliseconds(1500);
       interest.setMustBeFresh(true); //Is this needed?
 
-      scope.face.expressInterest(interest, handleData, retry);
+      async.retry(4, function(done){
+        scope.face.expressInterest(interest,
+          function(interest, data){
+            handleData(interest, data);
+            done();
+          }, function(){
+            done("Failed to get segment.");
+          }
+        );
+      }, function(err){
+        if (err){
+          console.log("Failed after 3 attempts:", err);
+        }
+      });
 
     }
 
@@ -798,12 +816,13 @@ var Atmos = (function(){
       (!hasFinalBlock && interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment())){
         callback(d.join(""));
       } else {
-        request(interest.getName().get(-1).toSegment() + 1);
+        segment++;
+        request();
       }
 
     }
 
-    request(0);
+    request();
 
   }
 
