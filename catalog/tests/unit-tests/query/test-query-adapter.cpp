@@ -384,6 +384,7 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
     BOOST_CHECK_EQUAL(false, queryAdapterTest1.json2SqlTest(ss, testJson));
   }
 
+  // use real data instead of ack data
   BOOST_AUTO_TEST_CASE(QueryAdapterMakeAckDataTest)
   {
     ndn::Interest interest(ndn::Name("/test/ack/data/json"));
@@ -396,9 +397,6 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
 
     std::shared_ptr<ndn::Data> data = queryAdapterTest2.getAckData(interestPtr, version);
     BOOST_CHECK_EQUAL(data->getName().toUri(), "/test/ack/data/json");
-    BOOST_CHECK_EQUAL(std::string(reinterpret_cast<const char*>(data->getContent().value()),
-                                  data->getContent().value_size()),
-                      "/query-results/catalogIdPlaceHolder/json/%FD%01");
   }
 
   BOOST_AUTO_TEST_CASE(QueryAdapterMakeReplyDataTest1)
@@ -457,6 +455,7 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
       = std::make_shared<ndn::Interest>(ndn::Name("/test/query").append(jsonMessage.c_str()));
 
     queryAdapterTest2.queryTest(queryInterest);
+
     // TODO: the code below should be enabled when queryAdapter can get the correct the
     // ChronoSync state; currently, we don't need the activeQuery to save the ACK data;
     //auto ackData = queryAdapterTest2.getDataFromActiveQuery(jsonMessage);
@@ -470,12 +469,11 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
     //  BOOST_CHECK_EQUAL(ackData->getContent().value_size(), 0);
     //}
 
-    std::shared_ptr<ndn::Interest> resultInterest
-      = std::make_shared<ndn::Interest>(ndn::Name("/test/query-results"));
-    auto replyData = queryAdapterTest2.getDataFromCache(*resultInterest);
+    // there is no query-results namespace data
+    auto replyData = queryAdapterTest2.getDataFromCache(*queryInterest);
     BOOST_CHECK(replyData);
     if (replyData){
-      BOOST_CHECK_EQUAL(replyData->getName().getPrefix(2), ndn::Name("/test/query-results"));
+      BOOST_CHECK_EQUAL(replyData->getName().getPrefix(2), ndn::Name("/test/query"));
       const std::string jsonRes(reinterpret_cast<const char*>(replyData->getContent().value()),
                                 replyData->getContent().value_size());
       Json::Value parsedFromString;

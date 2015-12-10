@@ -30,7 +30,7 @@
               var regex = new RegExp("[\\?&]" + name + "=([^&#]*)"),
                   results = regex.exec(location.search);
             return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
-    }
+    };
 
     //Overwrite config if present. Any failure will just cause this to be skipped.
     try{
@@ -60,7 +60,7 @@ var Atmos = (function(){
       return (c=='x' ? r : (r&0x3|0x8)).toString(16);
     });
     return uuid;
-  }
+  };
 
   /**
    * Atmos
@@ -86,6 +86,7 @@ var Atmos = (function(){
     this.config = config;
 
     this.catalog = config['global']['catalogPrefix'];
+    this.catalogPrefix = new Name(this.catalog);
 
     this.face = new Face(config['global']['faceConfig']);
 
@@ -193,7 +194,7 @@ var Atmos = (function(){
           scope.query(scope.catalog, {'??': path},
           function(interest, data){
             console.log("Search response", interest, data);
-            scope.name = data.getContent().toString().replace(/[\n\0]+/g, '');
+            scope.name = interest.getName();
             scope.getResults(0);
           }, function(interest){
             console.warn("Failed to retrieve final component.", interest, path);
@@ -206,7 +207,7 @@ var Atmos = (function(){
         callback(list.map(function(element){
           return (path == "/"?"/":"") + element + "/";
         }));
-      })
+      });
     });
 
     $('#treeSearch').on('click', '.treeSearch', function(){
@@ -222,7 +223,7 @@ var Atmos = (function(){
       function(interest, data){ //Success
         console.log("Tree search response", interest, data);
 
-        scope.name = data.getContent().toString().replace(/[\n\0]+/g,'');
+        scope.name = interest.getName();
 
         scope.getResults(0);
       },
@@ -259,7 +260,7 @@ var Atmos = (function(){
       scope.request(null, filename);
     });
 
-  }
+  };
 
   Atmos.prototype.clearResults = function(){
     this.results = []; //Drop any old results.
@@ -267,7 +268,7 @@ var Atmos = (function(){
     this.resultCount = Infinity;
     this.page = 0;
     this.resultTable.empty();
-  }
+  };
 
   Atmos.prototype.pathSearch = function(){
     var value = this.searchInput.val();
@@ -280,7 +281,7 @@ var Atmos = (function(){
     function(interest, data){
       console.log("Query response:", interest, data);
 
-      scope.name = data.getContent().toString().replace(/[\n\0]/g,"");
+      scope.name = interest.getName();
 
       scope.getResults(0);
 
@@ -290,7 +291,7 @@ var Atmos = (function(){
       scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
     });
 
-  }
+  };
 
   Atmos.prototype.search = function(){
 
@@ -308,7 +309,7 @@ var Atmos = (function(){
     function(interest, data){ //Response function
       console.log("Query Response:", interest, data);
 
-      scope.name = data.getContent().toString().replace(/[\n\0]/g,"");
+      scope.name = interest.getName();
 
       scope.getResults(0);
 
@@ -317,7 +318,7 @@ var Atmos = (function(){
       scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
     });
 
-  }
+  };
 
   Atmos.prototype.autoComplete = function(field, callback){
 
@@ -326,7 +327,7 @@ var Atmos = (function(){
     this.query(this.catalog, {"?": field},
     function(interest, data){
 
-      var name = new Name(data.getContent().toString().replace(/[\n\0]/g,""));
+      var name = interest.getName();
 
       var interest = new Interest(name);
       interest.setInterestLifetimeMilliseconds(1500);
@@ -359,7 +360,7 @@ var Atmos = (function(){
       scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
     });
 
-  }
+  };
 
   Atmos.prototype.showResults = function(resultIndex) {
 
@@ -401,38 +402,42 @@ var Atmos = (function(){
 
     $.scrollTo("#results", 500, {interrupt: true});
 
-  }
+  };
 
   Atmos.prototype.getResults = function(index){
+    var scope = this;
 
     if ($('#results').hasClass('hidden')){
       $('#results').removeClass('hidden').slideDown();
     }
 
-    if ((this.results.length === this.resultCount) || (this.resultsPerPage * (index + 1) < this.results.length)){
+    if ((scope.results.length === scope.resultCount) || (scope.resultsPerPage * (index + 1) < scope.results.length)){
       //console.log("We already have index", index);
-      this.page = index;
-      this.showResults(index);
+      scope.page = index;
+      scope.showResults(index);
       return;
     }
 
-    if (this.name === null) {
+    if (scope.name === null) {
       console.error("This shouldn't be reached! We are getting results before a search has occured!");
       throw new Error("Illegal State");
     }
 
-    var first = new Name(this.name).appendSegment(this.retrievedSegments++);
+    var interestName = new Name(scope.name);
 
-    console.log("Requesting data index: (", this.retrievedSegments - 1, ") at ", first.toUri());
+    // Interest name should be /<catalog-prefix>/query/<query-param>/<version>/<#seq>
+    if (scope.name.size() === (scope.catalogPrefix.size() + 3)) {
+      interestName = interestName.appendSegment(scope.retrievedSegments++);
+      console.log("Requesting data index: (", scope.retrievedSegments - 1, ") at ", interestName.toUri());
+    }
 
-    var scope = this;
+    var interest = new Interest(interestName);
 
-    var interest = new Interest(first)
     interest.setInterestLifetimeMilliseconds(1500);
     interest.setMustBeFresh(true);
 
     async.retry(4, function(done){
-      this.face.expressInterest(interest,
+      scope.face.expressInterest(interest,
         function(interest, data){ //Response
 
           if (data.getContent().length === 0){
@@ -463,6 +468,9 @@ var Atmos = (function(){
 
           scope.page = index;
 
+          // reset scope.name
+          scope.name = new Name(data.getName().getPrefix(scope.catalogPrefix.size() + 3));
+
           scope.getResults(index); //Keep calling this until we have enough data.
 
           done();
@@ -479,7 +487,7 @@ var Atmos = (function(){
       }
     });
 
-  }
+  };
 
   Atmos.prototype.query = function(prefix, parameters, callback, timeout) {
 
@@ -508,7 +516,7 @@ var Atmos = (function(){
       }
     });
 
-  }
+  };
 
   /**
    * This function returns a map of all the categories active filters.
@@ -522,7 +530,7 @@ var Atmos = (function(){
     }, {}); //Collect a map<category, filter>.
     //TODO Make the return value map<category, Array<filter>>
     return filters;
-  }
+  };
 
   /**
    * Creates a closable alert for the user.
@@ -538,7 +546,7 @@ var Atmos = (function(){
     alert.append(closeButton);
 
     this.alerts.append(alert);
-  }
+  };
 
   /**
    * Requests all of the names represented by the buttons in the elements list.
@@ -693,7 +701,7 @@ var Atmos = (function(){
       });
       $('#request').modal(); //This forces the form to be the only option.
 
-    }
+    };
   }();
 
   Atmos.prototype.filterSetup = function() {
@@ -760,7 +768,7 @@ var Atmos = (function(){
       ga('send', 'event', 'error', 'filters');
     });
 
-  }
+  };
 
   /**
    * This function retrieves all segments in order until it knows it has reached the last one.
@@ -803,7 +811,7 @@ var Atmos = (function(){
         }
       });
 
-    }
+    };
 
     var handleData = function(interest, data){
 
@@ -820,11 +828,11 @@ var Atmos = (function(){
         request();
       }
 
-    }
+    };
 
     request();
 
-  }
+  };
 
   Atmos.prototype.cleanRequestForm = function(){
     $('#requestDest').prev().removeClass('btn-success').addClass('btn-default');
@@ -833,7 +841,7 @@ var Atmos = (function(){
     $('#subsetMenu').attr('class', 'collapse');
     $('#subsetVariables').empty();
     $('#request .alert').alert('close').remove();
-  }
+  };
 
   Atmos.prototype.setupRequestForm = function(){
 
@@ -879,7 +887,7 @@ var Atmos = (function(){
       addVariable('#locationTemplate');
     });
 
-  }
+  };
 
   Atmos.prototype.getMetaData = (function(){
 
@@ -915,7 +923,7 @@ var Atmos = (function(){
 
       return ret;
 
-    }
+    };
   })();
 
   return Atmos;
