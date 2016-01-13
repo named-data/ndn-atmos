@@ -78,9 +78,9 @@ main(int argc, char** argv)
   std::shared_ptr<chronosync::Socket> syncSocket;
 
   std::unique_ptr<atmos::util::CatalogAdapter>
-    queryAdapter(new atmos::query::QueryAdapter<MYSQL>(face, keyChain, syncSocket));
+    queryAdapter(new atmos::query::QueryAdapter<ConnectionPool_T>(face, keyChain, syncSocket));
   std::unique_ptr<atmos::util::CatalogAdapter>
-    publishAdapter(new atmos::publish::PublishAdapter<MYSQL>(face, keyChain, syncSocket));
+    publishAdapter(new atmos::publish::PublishAdapter<ConnectionPool_T>(face, keyChain, syncSocket));
 
   atmos::catalog::Catalog catalogInstance(face, keyChain, configFile);
   catalogInstance.addAdapter(publishAdapter);

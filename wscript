@@ -59,6 +59,9 @@ def configure(conf):
     conf.check_cfg(package='libndn-cxx', args=['--cflags', '--libs'],
                    uselib_store='NDN_CXX', mandatory=True)
 
+    conf.check_cfg(package='zdb', args=['--cflags', '--libs'],
+                   uselib_store='ZDB', mandatory=True)
+
     conf.check_cfg(package='ChronoSync', args=['ChronoSync >= 0.1', '--cflags', '--libs'],
                    uselib_store='SYNC', mandatory=True)
 
@@ -101,7 +104,7 @@ def build (bld):
         features='cxx',
         source=bld.path.ant_glob(['catalog/src/**/*.cpp'],
                                  excl=['catalog/src/main.cpp']),
-        use='NDN_CXX BOOST JSON MYSQL SYNC LOG4CXX',
+        use='NDN_CXX BOOST JSON MYSQL SYNC LOG4CXX ZDB',
         includes='catalog/src .',
         export_includes='catalog/src .'
     )

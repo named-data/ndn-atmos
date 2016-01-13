@@ -185,15 +185,6 @@ protected:
   sendNack(const ndn::Name& dataPrefix);
 
   /**
-   * Helper function that generates the sqlQuery string for component-based query
-   * @param sqlQuery:     stringstream to save the sqlQuery string
-   * @param jsonValue:    Json value that contains the query information
-   */
-  bool
-  json2Sql(std::stringstream& sqlQuery,
-           Json::Value& jsonValue);
-
-  /**
    * Helper function that signs the data
    */
   void
@@ -203,16 +194,30 @@ protected:
    * Helper function that publishes query-results data segments
    */
   virtual void
-  prepareSegments(const ndn::Name& segmentPrefix,
-                  const std::string& sqlString,
-                  bool autocomplete,
-                  bool lastComponent);
+  prepareSegmentsBySqlString(const ndn::Name& segmentPrefix,
+                             const std::string& sqlString,
+                             bool lastComponent,
+                             const std::string& nameField);
+
+  virtual void
+  prepareSegmentsByParams(std::vector<std::pair<std::string, std::string>>& queryParams,
+                          const ndn::Name& segmentPrefix);
+
+  void
+  generateSegments(ResultSet_T& res,
+                   const ndn::Name& segmentPrefix,
+                   int resultCount,
+                   bool autocomplete,
+                   bool lastComponent);
 
   /**
    * Helper function to set the DatabaseHandler
    */
   void
   setDatabaseHandler(const util::ConnectionDetails&  databaseId);
+
+  void
+  closeDatabaseHandler();
 
   /**
    * Helper function that set filters to make the adapter work
@@ -228,15 +233,21 @@ protected:
    * @param sqlQuery:      stringstream to save the sqlQuery string
    * @param jsonValue:     Json value that contains the query information
    * @param lastComponent: Flag to mark the last component query
+   * @param nameField:     stringstream to save the nameField string
    */
   bool
   json2AutocompletionSql(std::stringstream& sqlQuery,
                          Json::Value& jsonValue,
-                         bool& lastComponent);
+                         bool& lastComponent,
+                         std::stringstream& nameField);
 
   bool
-  json2PrefixBasedSearchSql(std::stringstream& sqlQuery,
-                            Json::Value& jsonValue);
+  doPrefixBasedSearch(Json::Value& jsonValue,
+                      std::vector<std::pair<std::string, std::string>>& typedComponents);
+
+  bool
+  doFilterBasedSearch(Json::Value& jsonValue,
+                      std::vector<std::pair<std::string, std::string>>& typedComponents);
 
   ndn::Name
   getQueryResultsName(std::shared_ptr<const ndn::Interest> interest,
@@ -248,14 +259,13 @@ protected:
 protected:
   typedef std::unordered_map<ndn::Name, const ndn::RegisteredPrefixId*> RegisteredPrefixList;
   // Handle to the Catalog's database
-  std::shared_ptr<DatabaseHandler> m_databaseHandler;
+  std::shared_ptr<DatabaseHandler> m_dbConnPool;
   const std::shared_ptr<chronosync::Socket>& m_socket;
 
   // mutex to control critical sections
   std::mutex m_mutex;
   // @{ needs m_mutex protection
   // The Queries we are currently writing to
-  //std::map<std::string, std::shared_ptr<ndn::Data>> m_activeQueryToFirstResponse;
   ndn::util::InMemoryStorageLru m_activeQueryToFirstResponse;
   ndn::util::InMemoryStorageLru m_cache;
   std::string m_chronosyncDigest;
@@ -396,7 +406,7 @@ QueryAdapter<DatabaseHandler>::setCatalogId()
 
 template <>
 void
-QueryAdapter<MYSQL>::setCatalogId()
+QueryAdapter<ConnectionPool_T>::setCatalogId()
 {
   // use public key digest as the catalog ID
   ndn::Name keyId;
@@ -421,12 +431,24 @@ QueryAdapter<DatabaseHandler>::setDatabaseHandler(const util::ConnectionDetails&
 
 template <>
 void
-QueryAdapter<MYSQL>::setDatabaseHandler(const util::ConnectionDetails& databaseId)
+QueryAdapter<ConnectionPool_T>::setDatabaseHandler(const util::ConnectionDetails& databaseId)
 {
-  std::shared_ptr<MYSQL> conn = atmos::util::MySQLConnectionSetup(databaseId);
-
-  m_databaseHandler = conn;
+  m_dbConnPool = zdbConnectionSetup(databaseId);
 }
+
+template <typename DatabaseHandler>
+void
+QueryAdapter<DatabaseHandler>::closeDatabaseHandler()
+{
+}
+
+template <>
+void
+QueryAdapter<ConnectionPool_T>::closeDatabaseHandler()
+{
+  ConnectionPool_stop(*m_dbConnPool);
+}
+
 
 template <typename DatabaseHandler>
 QueryAdapter<DatabaseHandler>::~QueryAdapter()
@@ -435,6 +457,8 @@ QueryAdapter<DatabaseHandler>::~QueryAdapter()
     if (static_cast<bool>(itr.second))
       m_face->unsetInterestFilter(itr.second);
   }
+
+  closeDatabaseHandler();
 }
 
 template <typename DatabaseHandler>
@@ -446,7 +470,8 @@ QueryAdapter<DatabaseHandler>::onIncomingQueryInterest(const ndn::InterestFilter
 
   // Interest must carry component "initialization" or "query"
   if (interest.getName().size() < filter.getPrefix().size()) {
-    // @todo: return a nack
+    // must NACK incorrect interest
+    sendNack(interest.getName());
     return;
   }
 
@@ -457,7 +482,7 @@ QueryAdapter<DatabaseHandler>::onIncomingQueryInterest(const ndn::InterestFilter
     std::thread queryThread(&QueryAdapter<DatabaseHandler>::onFiltersInitializationInterest,
                             this,
                             interestPtr);
-    queryThread.join();
+    queryThread.detach();
   }
   else if (interest.getName()[filter.getPrefix().size()] == ndn::Name::Component("query")) {
 
@@ -484,7 +509,7 @@ QueryAdapter<DatabaseHandler>::onIncomingQueryInterest(const ndn::InterestFilter
     std::thread queryThread(&QueryAdapter<DatabaseHandler>::runJsonQuery,
                             this,
                             interestPtr);
-    queryThread.join();
+    queryThread.detach();
   }
 
   // ignore other Interests
@@ -597,31 +622,35 @@ QueryAdapter<DatabaseHandler>::getFiltersMenu(Json::Value& value)
 // get distinct value of each column
 template <>
 void
-QueryAdapter<MYSQL>::getFiltersMenu(Json::Value& value)
+QueryAdapter<ConnectionPool_T>::getFiltersMenu(Json::Value& value)
 {
   _LOG_DEBUG(">> QueryAdapter::getFiltersMenu");
   Json::Value tmp;
+
+  Connection_T conn = ConnectionPool_getConnection(*m_dbConnPool);
+  if (!conn) {
+    _LOG_DEBUG("No available database connections");
+    return;
+  }
 
   for (size_t i = 0; i < m_filterCategoryNames.size(); i++) {
     std::string columnName = m_filterCategoryNames[i];
     std::string getFilterSql("SELECT DISTINCT " + columnName +
                              " FROM " + m_databaseTable + ";");
-    std::string errMsg;
-    bool success;
 
-    std::shared_ptr<MYSQL_RES> results
-      = atmos::util::MySQLPerformQuery(m_databaseHandler, getFilterSql,
-                                       util::QUERY, success, errMsg);
-    if (!success) {
-      _LOG_ERROR(errMsg);
-      value.clear();
-      return;
+    ResultSet_T res4ColumnName;
+    TRY {
+      res4ColumnName = Connection_executeQuery(conn, reinterpret_cast<const char*>(getFilterSql.c_str()), getFilterSql.size());
+    }
+    CATCH(SQLException) {
+      _LOG_ERROR(Connection_getLastError(conn));
+    }
+    END_TRY;
+
+    while (ResultSet_next(res4ColumnName)) {
+      tmp[columnName].append(ResultSet_getString(res4ColumnName, 1));
     }
 
-    while (MYSQL_ROW row = mysql_fetch_row(results.get()))
-    {
-      tmp[columnName].append(row[0]);
-    }
     value.append(tmp);
     tmp.clear();
   }
@@ -689,67 +718,16 @@ QueryAdapter<DatabaseHandler>::sendNack(const ndn::Name& dataPrefix)
 
   m_mutex.lock();
   m_cache.insert(*nack);
+  m_face->put(*nack);
   m_mutex.unlock();
-}
-
-
-template <typename DatabaseHandler>
-bool
-QueryAdapter<DatabaseHandler>::json2Sql(std::stringstream& sqlQuery,
-                                        Json::Value& jsonValue)
-{
-  _LOG_DEBUG(">> QueryAdapter::json2Sql");
-
-  _LOG_DEBUG(jsonValue.toStyledString());
-
-  if (jsonValue.type() != Json::objectValue) {
-    return false;
-  }
-
-  sqlQuery << "SELECT name FROM " << m_databaseTable;
-  bool input = false;
-  for (Json::Value::iterator iter = jsonValue.begin(); iter != jsonValue.end(); ++iter)
-  {
-    Json::Value key = iter.key();
-    Json::Value value = (*iter);
-
-    if (key == Json::nullValue || value == Json::nullValue) {
-      _LOG_ERROR("Null key or value in JsonValue");
-      return false;
-    }
-
-    // cannot convert to string
-    if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
-      _LOG_ERROR("Malformed JsonQuery string");
-      return false;
-    }
-
-    if (key.asString().compare("?") == 0) {
-      continue;
-    }
-
-    if (input) {
-      sqlQuery << " AND";
-    } else {
-      sqlQuery << " WHERE";
-    }
-
-    sqlQuery << " " << key.asString() << "='" << value.asString() << "'";
-    input = true;
-  }
-
-  if (!input) { // Force it to be the empty set
-     return false;
-  }
-  sqlQuery << ";";
-  return true;
 }
 
 template <typename DatabaseHandler>
 bool
 QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuery,
                                                       Json::Value& jsonValue,
-                                                      bool& lastComponent)
+                                                      bool& lastComponent,
+                                                      std::stringstream& fieldName)
 {
   _LOG_DEBUG(">> QueryAdapter::json2AutocompletionSql");
 
@@ -812,7 +790,8 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
     lastComponent = true; // indicate this query is to query the last component
 
   bool more = false;
-  sqlQuery << "SELECT DISTINCT " << m_nameFields[count] << " FROM " << m_databaseTable;
+
+  fieldName << m_nameFields[count];
   for (std::map<std::string, std::string>::iterator it = typedComponents.begin();
        it != typedComponents.end(); ++it) {
     if (more)
@@ -828,14 +807,12 @@ QueryAdapter<DatabaseHandler>::json2AutocompletionSql(std::stringstream& sqlQuer
   return true;
 }
 
-template <typename DatabaseHandler>
+template <typename databasehandler>
 bool
-QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQuery,
-                                                         Json::Value& jsonValue)
+QueryAdapter<databasehandler>::doPrefixBasedSearch(Json::Value& jsonValue,
+                                                   std::vector<std::pair<std::string, std::string>>& typedComponents)
 {
-  _LOG_DEBUG(">> QueryAdapter::json2CompleteSearchSql");
-
-  _LOG_DEBUG(jsonValue.toStyledString());
+  _LOG_DEBUG(">> QueryAdapter::doPrefixBasedSearch");
 
   if (jsonValue.type() != Json::objectValue) {
     return false;
@@ -849,13 +826,13 @@ QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQ
     Json::Value value = (*iter);
 
     if (key == Json::nullValue || value == Json::nullValue) {
-      _LOG_ERROR("Null key or value in JsonValue");
+      _LOG_ERROR("null key or value in jsonValue");
       return false;
     }
 
     // cannot convert to string
     if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
-      _LOG_ERROR("Malformed JsonQuery string");
+      _LOG_ERROR("malformed jsonquery string");
       return false;
     }
 
@@ -871,10 +848,10 @@ QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQ
   size_t pos = 0;
   size_t start = 1; // start from the 1st char which is not '/'
   size_t count = 0; // also the name to query for
-  size_t typedStringLen = typedString.length();
+  size_t typedStringlen = typedString.length();
   std::string token;
   std::string delimiter = "/";
-  std::vector<std::pair<std::string, std::string>> typedComponents;
+
   while ((pos = typedString.find(delimiter, start)) != std::string::npos) {
     token = typedString.substr(start, pos - start);
     if (count >= m_nameFields.size()) {
@@ -889,29 +866,53 @@ QueryAdapter<DatabaseHandler>::json2PrefixBasedSearchSql(std::stringstream& sqlQ
   }
 
   // we may have a component after the last "/"
-  if (start < typedStringLen) {
+  if (start < typedStringlen) {
     typedComponents.push_back(std::make_pair(m_nameFields[count],
-                                             typedString.substr(start, typedStringLen - start)));
+                                             typedString.substr(start, typedStringlen - start)));
   }
 
-  // 2. generate the sql string (append what appears in the typed string, like activity='xxx'),
-  // return true
-  bool more = false;
-  sqlQuery << "SELECT name FROM " << m_databaseTable;
-  for (std::vector<std::pair<std::string, std::string>>::iterator it = typedComponents.begin();
-       it != typedComponents.end(); ++it) {
-    if (more)
-      sqlQuery << " AND";
-    else
-      sqlQuery << " WHERE";
-
-    sqlQuery << " " << it->first << "='" << it->second << "'";
-
-    more = true;
-  }
-  sqlQuery << ";";
   return true;
 }
+
+
+template <typename databasehandler>
+bool
+QueryAdapter<databasehandler>::doFilterBasedSearch(Json::Value& jsonValue,
+                                                   std::vector<std::pair<std::string, std::string>>& typedComponents)
+{
+  _LOG_DEBUG(">> QueryAdapter::doFilterBasedSearch");
+
+  if (jsonValue.type() != Json::objectValue) {
+    return false;
+  }
+
+  for (Json::Value::iterator iter = jsonValue.begin(); iter != jsonValue.end(); ++iter)
+  {
+    Json::Value key = iter.key();
+    Json::Value value = (*iter);
+
+    if (key == Json::nullValue || value == Json::nullValue) {
+      _LOG_ERROR("null key or value in jsonValue");
+      return false;
+    }
+
+    // cannot convert to string
+    if (!key.isConvertibleTo(Json::stringValue) || !value.isConvertibleTo(Json::stringValue)) {
+      _LOG_ERROR("malformed jsonQuery string");
+      return false;
+    }
+
+    if (key.asString().compare("?") == 0 || key.asString().compare("??") == 0) {
+      continue;
+    }
+
+    _LOG_DEBUG(key.asString() << " " << value.asString());
+    typedComponents.push_back(std::make_pair(key.asString(), value.asString()));
+  }
+
+  return true;
+}
+
 
 template <typename DatabaseHandler>
 void
@@ -927,7 +928,8 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
   const std::string jsonQuery(reinterpret_cast<const char*>(jsonStr.value()), jsonStr.value_size());
 
   if (jsonQuery.length() <= 0) {
-    // no JSON query, send Nack?
+    // no JSON query, send Nack
+    sendNack(interest->getName());
     return;
   }
 
@@ -959,119 +961,274 @@ QueryAdapter<DatabaseHandler>::runJsonQuery(std::shared_ptr<const ndn::Interest>
   Json::Value parsedFromString;
   Json::Reader reader;
   if (!reader.parse(jsonQuery, parsedFromString)) {
-    // @todo: send NACK?
+    // json object is broken
+    sendNack(interest->getName());
     _LOG_ERROR("Cannot parse the JsonQuery");
     return;
   }
 
   // 3) Convert the JSON Query into a MySQL one
-  bool autocomplete = false, lastComponent = false;
-  std::stringstream sqlQuery;
-
   ndn::Name segmentPrefix(getQueryResultsName(interest, version));
   _LOG_DEBUG("segmentPrefix :" << segmentPrefix);
 
   Json::Value tmp;
+  std::vector<std::pair<std::string, std::string>> typedComponents;
+
   // expect the autocomplete and the component-based query are separate
-  // if JSON::Value contains ? as key, is autocompletion
+  // if Json::Value contains ? as key, is autocompletion
   if (parsedFromString.get("?", tmp) != tmp) {
-    autocomplete = true;
-    if (!json2AutocompletionSql(sqlQuery, parsedFromString, lastComponent)) {
+    bool lastComponent = false;
+    std::stringstream sqlQuery, fieldName;
+
+    // must generate the sql string for autocomple, the selected column is changing
+    if (!json2AutocompletionSql(sqlQuery, parsedFromString, lastComponent, fieldName)) {
       sendNack(segmentPrefix);
       return;
     }
+    prepareSegmentsBySqlString(segmentPrefix, sqlQuery.str(), lastComponent, fieldName.str());
   }
   else if (parsedFromString.get("??", tmp) != tmp) {
-    if (!json2PrefixBasedSearchSql(sqlQuery, parsedFromString)) {
+    if (!doPrefixBasedSearch(parsedFromString, typedComponents)) {
       sendNack(segmentPrefix);
       return;
     }
+    prepareSegmentsByParams(typedComponents, segmentPrefix);
   }
   else {
-    if (!json2Sql(sqlQuery, parsedFromString)) {
+    if (!doFilterBasedSearch(parsedFromString, typedComponents)) {
       sendNack(segmentPrefix);
       return;
+    }
+    prepareSegmentsByParams(typedComponents, segmentPrefix);
+  }
+
+}
+
+template <typename databasehandler>
+void
+QueryAdapter<databasehandler>::
+prepareSegmentsByParams(std::vector<std::pair<std::string, std::string>>& queryParams,
+                        const ndn::Name& segmentprefix)
+{
+}
+
+template <>
+void
+QueryAdapter<ConnectionPool_T>::
+prepareSegmentsByParams(std::vector<std::pair<std::string, std::string>>& queryParams,
+                        const ndn::Name& segmentPrefix)
+{
+  _LOG_DEBUG(">> QueryAdapter::prepareSegmentsByParams");
+
+  // the prepared_statement cannot improve the performance, but can simplify the code
+  Connection_T conn = ConnectionPool_getConnection(*m_dbConnPool);
+  if (!conn) {
+    // do not answer for this request due to lack of connections, request will come back later
+    _LOG_DEBUG("No available database connections");
+    return;
+  }
+  std::string getRecordNumSqlStr("SELECT count(name) FROM ");
+  getRecordNumSqlStr += m_databaseTable;
+  getRecordNumSqlStr += " WHERE ";
+  for (size_t i = 0; i < m_nameFields.size(); i++) {
+    getRecordNumSqlStr += m_nameFields[i];
+    getRecordNumSqlStr += " LIKE ?";
+    if (i != m_nameFields.size() - 1) {
+      getRecordNumSqlStr += " AND ";
     }
   }
 
-  // 4) Run the Query
-  prepareSegments(segmentPrefix, sqlQuery.str(), autocomplete, lastComponent);
+  PreparedStatement_T ps4RecordNum =
+    Connection_prepareStatement(conn, reinterpret_cast<const char*>(getRecordNumSqlStr.c_str()), getRecordNumSqlStr.size());
+
+  // before query, initialize all params for statement
+  for (size_t i = 0; i < m_nameFields.size(); i++) {
+    PreparedStatement_setString(ps4RecordNum, i + 1, "%");
+  }
+
+  // reset params based on the query
+  for (std::vector<std::pair<std::string, std::string>>::iterator it = queryParams.begin();
+       it != queryParams.end(); ++it) {
+    // dictionary is faster
+    for (size_t i = 0; i < m_nameFields.size(); i++) {
+      if (it->first == m_nameFields[i]) {
+        PreparedStatement_setString(ps4RecordNum, i + 1, it->second.c_str());
+      }
+    }
+  }
+
+  ResultSet_T res4RecordNum;
+  TRY {
+    res4RecordNum = PreparedStatement_executeQuery(ps4RecordNum);
+  }
+  CATCH(SQLException) {
+    _LOG_ERROR(Connection_getLastError(conn));
+  }
+  END_TRY;
+
+  uint64_t resultCount = 0; // use count sql to get
+
+  // result for record number
+  while (ResultSet_next(res4RecordNum)) {
+    resultCount = ResultSet_getInt(res4RecordNum, 1);
+  }
+
+  // get name list statement
+  std::string getNameListSqlStr("SELECT name FROM ");
+  getNameListSqlStr += m_databaseTable;
+  getNameListSqlStr += " WHERE ";
+  for (size_t i = 0; i < m_nameFields.size(); i++) {
+    getNameListSqlStr += m_nameFields[i];
+    getNameListSqlStr += " LIKE ?";
+    if (i != m_nameFields.size() - 1) {
+      getNameListSqlStr += " AND ";
+    }
+  }
+
+  PreparedStatement_T ps4Name =
+    Connection_prepareStatement(conn, reinterpret_cast<const char*>(getNameListSqlStr.c_str()), getNameListSqlStr.size());
+
+  // before query, initialize all params for statement
+  for (size_t i = 0; i < m_nameFields.size(); i++) {
+    PreparedStatement_setString(ps4Name, i + 1, "%");
+  }
+
+  // reset params based on the query
+  for (std::vector<std::pair<std::string, std::string>>::iterator it = queryParams.begin();
+       it != queryParams.end(); ++it) {
+    // dictionary is faster
+    for (size_t i = 0; i < m_nameFields.size(); i++) {
+      if (it->first == m_nameFields[i]) {
+        PreparedStatement_setString(ps4Name, i + 1, it->second.c_str());
+      }
+    }
+  }
+
+  ResultSet_T res4Name;
+  TRY {
+    res4Name = PreparedStatement_executeQuery(ps4Name);
+  }
+  CATCH(SQLException) {
+    _LOG_ERROR(Connection_getLastError(conn));
+  }
+  END_TRY;
+
+  generateSegments(res4Name, segmentPrefix, resultCount, false, false);
+
+  Connection_close(conn);
 }
 
 template <typename DatabaseHandler>
 void
-QueryAdapter<DatabaseHandler>::prepareSegments(const ndn::Name& segmentPrefix,
-                                               const std::string& sqlString,
-                                               bool autocomplete,
-                                               bool lastComponent)
+QueryAdapter<DatabaseHandler>::generateSegments(ResultSet_T& res,
+                                                const ndn::Name& segmentPrefix,
+                                                int resultCount,
+                                                bool autocomplete,
+                                                bool lastComponent)
+{
+  uint64_t segmentno = 0;
+  Json::Value tmp;
+  Json::Value resultjson;
+  Json::FastWriter fastWriter;
+
+  uint64_t viewstart = 0, viewend = 0;
+  while (ResultSet_next(res)) {
+    const char *name = ResultSet_getString(res, 1);
+    tmp.append(name);
+    const std::string tmpString = fastWriter.write(tmp);
+    if (tmpString.length() > PAYLOAD_LIMIT) {
+      std::shared_ptr<ndn::Data> data
+        = makeReplyData(segmentPrefix, resultjson, segmentno, false,
+                        autocomplete, resultCount, viewstart, viewend, lastComponent);
+      m_mutex.lock();
+      m_cache.insert(*data);
+      m_face->put(*data);
+      m_mutex.unlock();
+      tmp.clear();
+      resultjson.clear();
+      segmentno++;
+      viewstart = viewend + 1;
+    }
+    resultjson.append(name);
+    viewend++;
+  }
+  std::shared_ptr<ndn::Data> data
+    = makeReplyData(segmentPrefix, resultjson, segmentno, true,
+                    autocomplete, resultCount, viewstart, viewend, lastComponent);
+  m_mutex.lock();
+  m_cache.insert(*data);
+  m_face->put(*data);
+  m_mutex.unlock();
+}
+
+template <typename DatabaseHandler>
+void
+QueryAdapter<DatabaseHandler>::prepareSegmentsBySqlString(const ndn::Name& segmentPrefix,
+                                                          const std::string& sqlString,
+                                                          bool lastComponent,
+                                                          const std::string& nameField)
 {
   // empty
 }
 
-// prepareSegments specilization function
-template<>
+
+template <>
 void
-QueryAdapter<MYSQL>::prepareSegments(const ndn::Name& segmentPrefix,
-                                     const std::string& sqlString,
-                                     bool autocomplete,
-                                     bool lastComponent)
+QueryAdapter<ConnectionPool_T>::prepareSegmentsBySqlString(const ndn::Name& segmentPrefix,
+                                                          const std::string& sqlString,
+                                                          bool lastComponent,
+                                                          const std::string& nameField)
 {
-  _LOG_DEBUG(">> QueryAdapter::prepareSegments");
+  _LOG_DEBUG(">> QueryAdapter::prepareSegmentsBySqlString");
 
   _LOG_DEBUG(sqlString);
 
-  std::string errMsg;
-  bool success;
-  // 4) Run the Query
-  std::shared_ptr<MYSQL_RES> results
-    = atmos::util::MySQLPerformQuery(m_databaseHandler, sqlString, util::QUERY, success, errMsg);
-  if (!success)
-    _LOG_ERROR(errMsg);
-
-  if (!results) {
-    _LOG_ERROR("NULL MYSQL_RES for" << sqlString);
-
-    // @todo: throw runtime error or log the error message?
+  Connection_T conn = ConnectionPool_getConnection(*m_dbConnPool);
+  if (!conn) {
+    _LOG_DEBUG("No available database connections");
     return;
   }
 
-  uint64_t resultCount = mysql_num_rows(results.get());
+  //// just for get the rwo count ...
+  std::string getRecordNumSqlStr("SELECT COUNT( DISTINCT ");
+  getRecordNumSqlStr += nameField;
+  getRecordNumSqlStr += ") FROM ";
+  getRecordNumSqlStr += m_databaseTable;
+  getRecordNumSqlStr += sqlString;
 
-  _LOG_DEBUG("Query resuls contain " << resultCount << "rows");
-
-  MYSQL_ROW row;
-  uint64_t segmentNo = 0;
-  Json::Value tmp;
-  Json::Value resultJson;
-  Json::FastWriter fastWriter;
-
-  uint64_t viewStart = 0, viewEnd = 0;
-  while ((row = mysql_fetch_row(results.get())))
-  {
-    tmp.append(row[0]);
-    const std::string tmpString = fastWriter.write(tmp);
-    if (tmpString.length() > PAYLOAD_LIMIT) {
-      std::shared_ptr<ndn::Data> data
-        = makeReplyData(segmentPrefix, resultJson, segmentNo, false,
-                        autocomplete, resultCount, viewStart, viewEnd, lastComponent);
-      m_mutex.lock();
-      m_cache.insert(*data);
-      m_mutex.unlock();
-      tmp.clear();
-      resultJson.clear();
-      segmentNo++;
-      viewStart = viewEnd + 1;
-    }
-    resultJson.append(row[0]);
-    viewEnd++;
+  ResultSet_T res4RecordNum;
+  TRY {
+    res4RecordNum = Connection_executeQuery(conn, reinterpret_cast<const char*>(getRecordNumSqlStr.c_str()), getRecordNumSqlStr.size());
   }
+  CATCH(SQLException) {
+    _LOG_ERROR(Connection_getLastError(conn));
+  }
+  END_TRY;
 
-  std::shared_ptr<ndn::Data> data
-    = makeReplyData(segmentPrefix, resultJson, segmentNo, true,
-                    autocomplete, resultCount, viewStart, viewEnd, lastComponent);
-  m_mutex.lock();
-  m_cache.insert(*data);
-  m_mutex.unlock();
+  uint64_t resultCount = 0;
+  while (ResultSet_next(res4RecordNum)) {
+    resultCount = ResultSet_getInt(res4RecordNum, 1);
+  }
+  ////
+
+  std::string getNextFieldsSqlStr("SELECT DISTINCT ");
+  getNextFieldsSqlStr += nameField;
+  getNextFieldsSqlStr += " FROM ";
+  getNextFieldsSqlStr += m_databaseTable;
+  getNextFieldsSqlStr += sqlString;
+
+  ResultSet_T res4NextFields;
+  TRY {
+    res4NextFields = Connection_executeQuery(conn, reinterpret_cast<const char*>(getNextFieldsSqlStr.c_str()), getNextFieldsSqlStr.size());
+  }
+  CATCH(SQLException) {
+    _LOG_ERROR(Connection_getLastError(conn));
+  }
+  END_TRY;
+
+  generateSegments(res4NextFields, segmentPrefix, resultCount, true, lastComponent);
+
+  Connection_close(conn);
 }
 
 template <typename DatabaseHandler>
@@ -1096,8 +1253,8 @@ QueryAdapter<DatabaseHandler>::makeReplyData(const ndn::Name& segmentPrefix,
   if (lastComponent)
     entry["lastComponent"] = Json::Value(true);
 
-  _LOG_DEBUG("resultCount " << resultCount << ";"
-             << "viewStart " << viewStart << ";"
+  _LOG_DEBUG("resultCount " << resultCount << "; "
+             << "viewStart " << viewStart << "; "
              << "viewEnd " << viewEnd);
 
   if (isAutocomplete) {

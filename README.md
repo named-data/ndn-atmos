@@ -21,6 +21,7 @@ Dependencies
  * mysql 5.6.23 (http://www.mysql.com/)
  * ndn-cxx (https://github.com/named-data/ndn-cxx.git)
  * ChronoSync (https://github.com/named-data/ChronoSync.git)
+ * libzdb (http://www.tildeslash.com/libzdb/)
 
 **Dependency for tools and translator library**
 
@@ -33,7 +34,7 @@ Dependencies
  *  For OSX, the prerequisites can be installed using Homebrew:
 
 <pre>
-    brew install boost sqlite3 mysql jsoncpp hdf5 openssl cryptopp protobuf
+    brew install boost sqlite3 mysql jsoncpp hdf5 openssl cryptopp protobuf libzdb
     pip3 install mysql-connector-python --allow-all-external
     pip3 install netCDF4
 
@@ -46,7 +47,7 @@ Dependencies
                         libsqlite3-dev libmysqlclient-dev libjsoncpp-dev \
                         protobuf-compiler libprotobuf-dev netcdf4-python \
                         python3-mysql.connector python3-pip libhdf5-dev \
-                        libnetcdf-dev python3-numpy
+                        libnetcdf-dev python3-numpy libzdb-dev
 
     sudo pip3 install netCDF4
 </pre>
@@ -56,7 +57,7 @@ Dependencies
 <pre>
     sudo yum install boost-devel openssl-devel cryptopp-devel sqlite3x-devel \
                     mysql-devel jsoncpp-devel protobuf-compiler protobuf-devel \
-                    netcdf4-python3 mysql-connector-python3
+                    netcdf4-python3 mysql-connector-python3 libzdb-devel
 </pre>
 
 

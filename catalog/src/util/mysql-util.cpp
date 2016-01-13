@@ -31,55 +31,26 @@ ConnectionDetails::ConnectionDetails(const std::string& serverInput, const std::
   // empty
 }
 
-
-std::shared_ptr<MYSQL>
-MySQLConnectionSetup(const ConnectionDetails& details)
+std::shared_ptr<ConnectionPool_T>
+zdbConnectionSetup(const ConnectionDetails& details)
 {
-  MYSQL* conn = mysql_init(NULL);
-  my_bool reconnect = 1;
-  mysql_options(conn, MYSQL_OPT_RECONNECT, &reconnect);
-  if(!mysql_real_connect(conn, details.server.c_str(), details.user.c_str(),
-                         details.password.c_str(), details.database.c_str(), 0, NULL, 0)) {
-    throw std::runtime_error(mysql_error(conn));
-  }
-  std::shared_ptr<MYSQL> connection(conn, &mysql_close);
-  return connection;
-}
+  std::string dbConnStr("mysql://");
+  dbConnStr += details.user;
+  dbConnStr += ":";
+  dbConnStr += details.password;
+  dbConnStr += "@";
+  dbConnStr += details.server;
+  dbConnStr += ":3306/";
+  dbConnStr += details.database;
 
-std::shared_ptr<MYSQL_RES>
-MySQLPerformQuery(std::shared_ptr<MYSQL> connection,
-                  const std::string& sql_query,
-                  DatabaseOperation op,
-                  bool& success,
-                  std::string& errMsg)
-{
-  switch (mysql_query(connection.get(), sql_query.c_str()))
-  {
-  case 0:
-  {
-    success = true;
-    if (op == QUERY) {
-      MYSQL_RES* resultPtr = mysql_store_result(connection.get());
-      if (resultPtr != NULL)
-      {
-        return std::shared_ptr<MYSQL_RES>(resultPtr, &mysql_free_result);
-      }
-    }
-    //for add, remove, we don't need the results, may be log the events
-    break;
-  }
-  // Various error cases
-  case CR_COMMANDS_OUT_OF_SYNC:
-  case CR_SERVER_GONE_ERROR:
-  case CR_SERVER_LOST:
-  case CR_UNKNOWN_ERROR:
-  default:
-  {
-    errMsg.assign(mysql_error(connection.get()));
-    break;
-  }
-  }
-  return nullptr;
+  URL_T url = URL_new(dbConnStr.c_str());
+
+  ConnectionPool_T dbConnPool = ConnectionPool_new(url);
+  ConnectionPool_setMaxConnections(dbConnPool, MAX_DB_CONNECTIONS);
+  ConnectionPool_setReaper(dbConnPool, 1);
+  ConnectionPool_start(dbConnPool);
+  auto sharedPool = std::make_shared<ConnectionPool_T>(dbConnPool);
+  return sharedPool;
 }
 
 } // namespace util

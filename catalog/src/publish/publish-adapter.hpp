@@ -119,6 +119,9 @@ protected:
   void
   initializeDatabase(const util::ConnectionDetails&  databaseId);
 
+  void
+  closeDatabaseHandler();
+
   /**
    * Helper function that sets filters to make the adapter work
    */
@@ -137,7 +140,6 @@ protected:
    */
   bool
   validatePublicationChanges(const std::shared_ptr<const ndn::Data>& data);
-
 
   /**
    * Helper function that processes the sync update
@@ -263,7 +265,7 @@ PublishAdapter<DatabaseHandler>::setCatalogId()
 
 template <>
 void
-PublishAdapter<MYSQL>::setCatalogId()
+PublishAdapter<ConnectionPool_T>::setCatalogId()
 {
   // use public key digest as the catalog ID
   ndn::Name keyId;
@@ -302,12 +304,27 @@ PublishAdapter<DatabaseHandler>::setFilters()
 }
 
 template <typename DatabaseHandler>
+void
+PublishAdapter<DatabaseHandler>::closeDatabaseHandler()
+{
+}
+
+template <>
+void
+PublishAdapter<ConnectionPool_T>::closeDatabaseHandler()
+{
+  ConnectionPool_stop(*m_databaseHandler);
+}
+
+template <typename DatabaseHandler>
 PublishAdapter<DatabaseHandler>::~PublishAdapter()
 {
   for (const auto& itr : m_registeredPrefixList) {
     if (static_cast<bool>(itr.second))
       m_face->unsetInterestFilter(itr.second);
   }
+
+  closeDatabaseHandler();
 }
 
 template <typename DatabaseHandler>
@@ -437,15 +454,14 @@ PublishAdapter<DatabaseHandler>::initializeDatabase(const util::ConnectionDetail
 
 template <>
 void
-PublishAdapter<MYSQL>::initializeDatabase(const util::ConnectionDetails& databaseId)
+PublishAdapter<ConnectionPool_T>::initializeDatabase(const util::ConnectionDetails& databaseId)
 {
-  std::shared_ptr<MYSQL> conn = atmos::util::MySQLConnectionSetup(databaseId);
+  m_databaseHandler = zdbConnectionSetup(databaseId);
 
-  m_databaseHandler = conn;
+  Connection_T conn = ConnectionPool_getConnection(*m_databaseHandler);
 
-  if (m_databaseHandler != nullptr) {
-    std::string errMsg;
-    bool success = false;
+  if (conn != NULL) {
+
     // Ignore errors (when database already exists, errors are expected)
     std::string createSyncTable =
       "CREATE TABLE `chronosync_update_info` (\
@@ -456,12 +472,15 @@ PublishAdapter<MYSQL>::initializeDatabase(const util::ConnectionDetails& databas
        UNIQUE KEY `id_UNIQUE` (`id`)          \
        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
 
-    MySQLPerformQuery(m_databaseHandler, createSyncTable, util::CREATE,
-                      success, errMsg);
-#ifndef NDEBUG
-    if (!success)
-      _LOG_DEBUG(errMsg);
-#endif
+    // must use libzdb's try-catch style
+    TRY {
+      Connection_execute(conn,
+                         reinterpret_cast<const char*>(createSyncTable.c_str()), createSyncTable.size());
+    }
+    CATCH(SQLException) {
+      _LOG_ERROR(Connection_getLastError(conn));
+    }
+    END_TRY;
 
     // create SQL string for table creation, id, sha256, and name are columns that we need
     std::stringstream ss;
@@ -475,13 +494,17 @@ PublishAdapter<MYSQL>::initializeDatabase(const util::ConnectionDetails& databas
     ss << "PRIMARY KEY (`id`), UNIQUE KEY `sha256` (`sha256`)\
        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
 
-    success = false;
-    MySQLPerformQuery(m_databaseHandler, ss.str(), util::CREATE, success, errMsg);
+    // must use libzdb's try-catch style
+    TRY {
+      Connection_execute(conn,
+                         reinterpret_cast<const char*>(ss.str().c_str()), ss.str().size());
+    }
+    CATCH(SQLException) {
+      _LOG_ERROR(Connection_getLastError(conn));
+    }
+    END_TRY;
 
-#ifndef NDEBUG
-    if (!success)
-      _LOG_DEBUG(errMsg);
-#endif
+    Connection_close(conn);
   }
   else {
     throw Error("cannot connect to the Database");
@@ -655,32 +678,36 @@ PublishAdapter<DatabaseHandler>::getLatestSeqNo(const chronosync::MissingDataInf
 
 template <>
 chronosync::SeqNo
-PublishAdapter<MYSQL>::getLatestSeqNo(const chronosync::MissingDataInfo& update)
+PublishAdapter<ConnectionPool_T>::getLatestSeqNo(const chronosync::MissingDataInfo& update)
 {
   _LOG_DEBUG(">> PublishAdapter::getLatestSeqNo");
 
-  std::string sql = "SELECT seq_num FROM chronosync_update_info WHERE session_name = '"
-    + update.session.toUri() + "';";
+  Connection_T conn = ConnectionPool_getConnection(*m_databaseHandler);
 
-  std::string errMsg;
-  bool success;
-  std::shared_ptr<MYSQL_RES> results
-    = atmos::util::MySQLPerformQuery(m_databaseHandler, sql, util::QUERY, success, errMsg);
-  if (!success) {
-    _LOG_DEBUG(errMsg);
-    return 0; //database connection error?
+  if (!conn) {
+    _LOG_DEBUG("No available database connections");
+    return 0;
   }
-  else if (results != nullptr){
-    MYSQL_ROW row;
-    if (mysql_num_rows(results.get()) == 0)
-      return 0;
 
-    while ((row = mysql_fetch_row(results.get())))
-    {
-      chronosync::SeqNo seqNo = std::stoull(row[0]);
-      return seqNo;
-    }
+  PreparedStatement_T ps4SeqNum =
+    Connection_prepareStatement(conn,
+                                "SELECT seq_num FROM chronosync_update_info WHERE session_name = ?");
+  PreparedStatement_setString(ps4SeqNum, 1, update.session.toUri().c_str());
+  ResultSet_T res4SeqNum;
+  TRY {
+     res4SeqNum = PreparedStatement_executeQuery(ps4SeqNum);
   }
+  CATCH(SQLException) {
+    _LOG_ERROR(Connection_getLastError(conn));
+  }
+  END_TRY;
+
+  while (ResultSet_next(res4SeqNum)) {
+    return ResultSet_getInt(res4SeqNum, 1);
+  }
+
+  Connection_close(conn);
+
   return 0;
 }
 
@@ -693,19 +720,31 @@ PublishAdapter<DatabaseHandler>::renewUpdateInformation(const chronosync::Missin
 
 template <>
 void
-PublishAdapter<MYSQL>::renewUpdateInformation(const chronosync::MissingDataInfo& update)
+PublishAdapter<ConnectionPool_T>::renewUpdateInformation(const chronosync::MissingDataInfo& update)
 {
-  std::string sql = "UPDATE chronosync_update_info SET seq_num = "
-    + boost::lexical_cast<std::string>(update.high)
-    + " WHERE session_name = '" + update.session.toUri() + "';";
+  Connection_T conn = ConnectionPool_getConnection(*m_databaseHandler);
 
-  std::string errMsg;
-  bool success = false;
-  m_mutex.lock();
-  util::MySQLPerformQuery(m_databaseHandler, sql, util::UPDATE, success, errMsg);
-  m_mutex.unlock();
-  if (!success)
-    _LOG_ERROR(errMsg);
+  if (!conn) {
+    _LOG_DEBUG("No available database connections");
+    return;
+  }
+
+  PreparedStatement_T ps4UpdateSeqNum =
+    Connection_prepareStatement(conn,
+                                "UPDATE chronosync_update_info SET seq_num = ? WHERE session_name = ?");
+  PreparedStatement_setLLong(ps4UpdateSeqNum, 1, update.high);
+  PreparedStatement_setString(ps4UpdateSeqNum, 1, update.session.toUri().c_str());
+
+  TRY {
+     PreparedStatement_execute(ps4UpdateSeqNum);
+  }
+  CATCH(SQLException) {
+    _LOG_ERROR(Connection_getLastError(conn));
+  }
+  END_TRY;
+
+  Connection_close(conn);
+
 }
 
 template <typename DatabaseHandler>
@@ -717,19 +756,31 @@ PublishAdapter<DatabaseHandler>::addUpdateInformation(const chronosync::MissingD
 
 template <>
 void
-PublishAdapter<MYSQL>::addUpdateInformation(const chronosync::MissingDataInfo& update)
+PublishAdapter<ConnectionPool_T>::addUpdateInformation(const chronosync::MissingDataInfo& update)
 {
-  std::string sql = "INSERT INTO chronosync_update_info (session_name, seq_num) VALUES ('"
-    + update.session.toUri() + "', " + boost::lexical_cast<std::string>(update.high)
-    + ");";
+  Connection_T conn = ConnectionPool_getConnection(*m_databaseHandler);
 
-  std::string errMsg;
-  bool success = false;
-  m_mutex.lock();
-  util::MySQLPerformQuery(m_databaseHandler, sql, util::ADD, success, errMsg);
-  m_mutex.unlock();
-  if (!success)
-    _LOG_ERROR(errMsg);
+  if (!conn) {
+    _LOG_DEBUG("No available database connections");
+    return;
+  }
+
+  PreparedStatement_T ps4UpdateChronosync =
+    Connection_prepareStatement(conn, "INSERT INTO chronosync_update_info (session_name, seq_num) VALUES (?, ?)");
+
+  PreparedStatement_setString(ps4UpdateChronosync, 1, update.session.toUri().c_str());
+  PreparedStatement_setLLong(ps4UpdateChronosync, 1, update.high);
+
+  TRY {
+     PreparedStatement_execute(ps4UpdateChronosync);
+  }
+  CATCH(SQLException) {
+    _LOG_ERROR(Connection_getLastError(conn));
+  }
+  END_TRY;
+
+  Connection_close(conn);
+
 }
 
 template <typename DatabaseHandler>
@@ -794,15 +845,24 @@ PublishAdapter<DatabaseHandler>::operateDatabase(const std::string& sql, util::D
 
 template <>
 void
-PublishAdapter<MYSQL>::operateDatabase(const std::string& sql, util::DatabaseOperation op)
+PublishAdapter<ConnectionPool_T>::operateDatabase(const std::string& sql, util::DatabaseOperation op)
 {
-  std::string errMsg;
-  bool success = false;
-  m_mutex.lock();
-  atmos::util::MySQLPerformQuery(m_databaseHandler, sql, op, success, errMsg);
-  m_mutex.unlock();
-  if (!success)
-    _LOG_ERROR(errMsg);
+  Connection_T conn = ConnectionPool_getConnection(*m_databaseHandler);
+
+  if (!conn) {
+    _LOG_DEBUG("No available database connections");
+    return;
+  }
+
+  TRY {
+    Connection_execute(conn, reinterpret_cast<const char*>(sql.c_str()), sql.size());
+  }
+  CATCH(SQLException) {
+    _LOG_ERROR(Connection_getLastError(conn));
+  }
+  END_TRY;
+
+  Connection_close(conn);
 }
 
 template<typename DatabaseHandler>

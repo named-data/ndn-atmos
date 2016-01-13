@@ -84,13 +84,6 @@ namespace tests{
       return makeAckData(interest, version);
     }
 
-    bool
-    json2SqlTest(std::stringstream& ss,
-                 Json::Value& parsedFromString)
-    {
-      return json2Sql(ss, parsedFromString);
-    }
-
     std::shared_ptr<ndn::Data>
     getReplyData(const ndn::Name& segmentPrefix,
                  const Json::Value& value,
@@ -112,12 +105,14 @@ namespace tests{
     }
 
     void
-    prepareSegments(const ndn::Name& segmentPrefix,
-                    const std::string& sqlString,
-                    bool autocomplete,
-                    bool lastComponent)
+    prepareSegmentsByParams(std::vector<std::pair<std::string, std::string>>& queryParams,
+                            const ndn::Name& segmentPrefix)
     {
-      BOOST_CHECK_EQUAL(sqlString, "SELECT name FROM cmip5 WHERE name=\'test\';");
+      //BOOST_CHECK_EQUAL(sqlString, "SELECT name FROM cmip5 WHERE name=\'test\';");
+      for (auto it = queryParams.begin() ; it != queryParams.end(); ++it) {
+        std::cout << it->first << " " << it->second << std::endl;
+      }
+
       Json::Value fileList;
       fileList.append("/ndn/test1");
       fileList.append("/ndn/test2");
@@ -125,7 +120,7 @@ namespace tests{
 
       std::shared_ptr<ndn::Data> data = makeReplyData(segmentPrefix,
                                                       fileList, 0, true, false,
-                                                      3, 0, 2, lastComponent);
+                                                      3, 0, 2, true);
       m_mutex.lock();
       m_cache.insert(*data);
       m_mutex.unlock();
@@ -147,17 +142,27 @@ namespace tests{
     bool
     json2AutocompletionSqlTest(std::stringstream& sqlQuery,
                                Json::Value& jsonValue,
-                               bool& lastComponent)
+                               bool& lastComponent,
+                               std::stringstream& nameField)
     {
-      return json2AutocompletionSql(sqlQuery, jsonValue, lastComponent);
+      return json2AutocompletionSql(sqlQuery, jsonValue, lastComponent, nameField);
     }
 
     bool
-    json2PrefixBasedSearchSqlTest(std::stringstream& sqlQuery,
-                                  Json::Value& jsonValue)
+    testDoPrefixBasedSearch(Json::Value& jsonValue,
+                            std::vector<std::pair<std::string, std::string>>& typedComponents)
     {
-      return json2PrefixBasedSearchSql(sqlQuery, jsonValue);
+      return doPrefixBasedSearch(jsonValue, typedComponents);
     }
+
+    bool
+    testDoFilterBasedSearch(Json::Value& jsonValue,
+                            std::vector<std::pair<std::string, std::string>>& typedComponents)
+    {
+      return doFilterBasedSearch(jsonValue, typedComponents);
+    }
+
+
   };
 
   class QueryAdapterFixture : public UnitTestTimeFixture
@@ -269,121 +274,6 @@ namespace tests{
     BOOST_CHECK(queryAdapterTest1.getSigningId() == ndn::Name("/test/signingId"));
   }
 
-  BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseNormalTest)
-  {
-    Json::Value testJson;
-    testJson["name"] = "test";
-    testJson["activity"] = "testActivity";
-    testJson["product"] = "testProduct";
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(true, queryAdapterTest1.json2SqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL(ss.str(), "SELECT name FROM cmip5 WHERE\
- activity=\'testActivity\' AND name='test\' AND product=\'testProduct\';");
-  }
-
-  BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseEmptyTest)
-  {
-    Json::Value testJson;
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(false, queryAdapterTest1.json2SqlTest(ss, testJson));
-  }
-
-  BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseAllItemsTest)
-  {
-    Json::Value testJson;
-    testJson["name"] = "test";
-    testJson["activity"] = "testActivity";
-    testJson["product"] = "testProduct";
-    testJson["origanization"] = "testOrg";
-    testJson["model"] = "testModel";
-    testJson["experiment"] = "testExperiment";
-    testJson["frequency"] = "testFrenquency";
-    testJson["modeling realm"] = "testModeling";
-    testJson["variable name"] = "testVarName";
-    testJson["ensemble member"] = "testEnsembleMember";
-    testJson["ensemble"] = "testEnsemble";
-    testJson["sample granularity"] = "testSampleGranularity";
-    testJson["start time"] = "testStartTime";
-    testJson["field campaign"] = "testFieldCampaign";
-    testJson["optical properties for radiation"] = "testOptProperties";
-    testJson["grid resolution"] = "testGridResolution";
-    testJson["output type"] = "testOutputType";
-    testJson["timestamp"] = "testTimestamp";
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(true, queryAdapterTest1.json2SqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL(ss.str(), "SELECT name FROM cmip5 WHERE activity=\'testActivity\' AND \
-ensemble=\'testEnsemble\' AND ensemble member=\'testEnsembleMember\' AND \
-experiment=\'testExperiment\' AND field campaign=\'testFieldCampaign\' AND \
-frequency=\'testFrenquency\' AND grid resolution=\'testGridResolution\' AND \
-model=\'testModel\' AND modeling realm=\'testModeling\' AND name=\'test\' AND \
-optical properties for radiation=\'testOptProperties\' AND origanization=\'testOrg\' AND \
-output type=\'testOutputType\' AND product=\'testProduct\' AND sample \
-granularity=\'testSampleGranularity\' AND start time=\'testStartTime\' AND \
-timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
-  }
-
-  BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseSearchTest)
-  {
-    // incorrect autocompletion is ok for sql conversion
-    Json::Value testJson;
-    testJson["name"] = "test";
-    testJson["?"] = "serchTest";
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(true, queryAdapterTest1.json2SqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL(ss.str(),
-      "SELECT name FROM cmip5 WHERE name=\'test\';");
-  }
-
-   BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseFailTest1)
-   {
-     Json::Value testJson;
-    testJson["name"] = Json::nullValue;
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(false, queryAdapterTest1.json2SqlTest(ss, testJson));
-   }
-
-  BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseFailTest2)
-  {
-    Json::Value testJson;
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(false, queryAdapterTest1.json2SqlTest(ss, testJson));
-  }
-
-  BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseFailTest3)
-  {
-    Json::Value testJson;
-    testJson = Json::Value(Json::arrayValue);
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(false, queryAdapterTest1.json2SqlTest(ss, testJson));
-  }
-
-  BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseFailTest4)
-  {
-    Json::Value testJson;
-    testJson[0] = "test";
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(false, queryAdapterTest1.json2SqlTest(ss, testJson));
-  }
-
-  BOOST_AUTO_TEST_CASE(QueryAdapterJsonParseFailTest5)
-  {
-    Json::Value testJson;
-    Json::Value param;
-    param[0] = "test";
-    testJson["name"] = param;
-
-    std::stringstream ss;
-    BOOST_CHECK_EQUAL(false, queryAdapterTest1.json2SqlTest(ss, testJson));
-  }
-
   // use real data instead of ack data
   BOOST_AUTO_TEST_CASE(QueryAdapterMakeAckDataTest)
   {
@@ -491,155 +381,231 @@ timestamp=\'testTimestamp\' AND variable name=\'testVarName\';");
   {
     initializeQueryAdapterTest2();
 
-    std::stringstream ss;
+    std::stringstream ss, nameField;
     Json::Value testJson;
     bool lastComponent = false;
     testJson["?"] = "/";
     BOOST_CHECK_EQUAL(true,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
     BOOST_CHECK_EQUAL(lastComponent, false);
-    BOOST_CHECK_EQUAL("SELECT DISTINCT activity FROM cmip5;", ss.str());
+    BOOST_CHECK_EQUAL(";", ss.str());
+    BOOST_CHECK_EQUAL("activity", nameField.str());
 
     ss.str("");
     ss.clear();
+    nameField.str("");
+    nameField.clear();
     testJson.clear();
     testJson["?"] = "/Activity/";
     BOOST_CHECK_EQUAL(true,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
     BOOST_CHECK_EQUAL(lastComponent, false);
-    BOOST_CHECK_EQUAL("SELECT DISTINCT product FROM cmip5 WHERE activity='Activity';", ss.str());
+    BOOST_CHECK_EQUAL(" WHERE activity='Activity';", ss.str());
+    BOOST_CHECK_EQUAL("product", nameField.str());
 
     ss.str("");
     ss.clear();
+    nameField.str("");
+    nameField.clear();
     testJson.clear();
     testJson["?"] = "/Activity/Product/Organization/Model/Experiment/";
     BOOST_CHECK_EQUAL(true,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
     BOOST_CHECK_EQUAL(lastComponent, false);
-    BOOST_CHECK_EQUAL("SELECT DISTINCT frequency FROM cmip5 WHERE activity='Activity' AND \
+    BOOST_CHECK_EQUAL(" WHERE activity='Activity' AND \
 experiment='Experiment' AND model='Model' AND organization='Organization' AND product='Product';",
      ss.str());
+    BOOST_CHECK_EQUAL("frequency", nameField.str());
 
     ss.str("");
     ss.clear();
+    nameField.str("");
+    nameField.clear();
     testJson.clear();
     testJson["?"] = "/Activity/Product/Organization/Model/Experiment/Frequency/Modeling/\
 Variable/Ensemble/";
     BOOST_CHECK_EQUAL(true,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
     BOOST_CHECK_EQUAL(lastComponent, true);
-    BOOST_CHECK_EQUAL("SELECT DISTINCT time FROM cmip5 WHERE activity='Activity' AND ensemble=\
+    BOOST_CHECK_EQUAL(" WHERE activity='Activity' AND ensemble=\
 'Ensemble' AND experiment='Experiment' AND frequency='Frequency' AND model='Model' AND \
 modeling_realm='Modeling' AND organization='Organization' AND product='Product' AND variable_name=\
 'Variable';",ss.str());
+    BOOST_CHECK_EQUAL("time", nameField.str());
   }
 
   BOOST_AUTO_TEST_CASE(QueryAdapterAutocompletionSqlFailTest)
   {
     initializeQueryAdapterTest2();
 
-    std::stringstream ss;
+    std::stringstream ss, nameField;
     Json::Value testJson;
     bool lastComponent = false;
     testJson["?"] = "serchTest";
     BOOST_CHECK_EQUAL(false,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
 
     ss.str("");
     ss.clear();
+    nameField.str("");
+    nameField.clear();
     testJson.clear();
     testJson["?"] = "/cmip5";
     BOOST_CHECK_EQUAL(false,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson, lastComponent));
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
 
     ss.str("");
     ss.clear();
+    nameField.str("");
+    nameField.clear();
     Json::Value testJson2; //simply clear does not work
     testJson2[0] = "test";
     BOOST_CHECK_EQUAL(false,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson2, lastComponent));
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
 
     ss.str("");
     ss.clear();
+    nameField.str("");
+    nameField.clear();
     Json::Value testJson3;
     testJson3 = Json::Value(Json::arrayValue);
     BOOST_CHECK_EQUAL(false,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson3, lastComponent));
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
 
     ss.str("");
     ss.clear();
+    nameField.str("");
+    nameField.clear();
     Json::Value testJson4;
     Json::Value param;
     param[0] = "test";
     testJson4["name"] = param;
     BOOST_CHECK_EQUAL(false,
-                      queryAdapterTest2.json2AutocompletionSqlTest(ss, testJson4, lastComponent));
-}
-
-  BOOST_AUTO_TEST_CASE(QueryAdapterPrefixBasedSearchSuccessTest)
-  {
-    initializeQueryAdapterTest2();
-
-    std::stringstream ss;
-    Json::Value testJson;
-    testJson["??"] = "/";
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL("SELECT name FROM cmip5;", ss.str());
-
-    ss.str("");
-    ss.clear();
-    testJson.clear();
-    testJson["??"] = "/Activity/Product";
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson));
-    BOOST_CHECK_EQUAL("SELECT name FROM cmip5 WHERE activity='Activity' AND product='Product';",
-                      ss.str());
-
-    ss.str("");
-    ss.clear();
-    testJson.clear();
-    testJson["??"] = "/Activity/Product/Organization/Model/Experiment/Frequency/Modeling/\
-Variable/Ensemble/Time/";
-
-    BOOST_CHECK_EQUAL(true, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson));
-
-    BOOST_CHECK_EQUAL("SELECT name FROM cmip5 WHERE activity='Activity' AND product='Product' \
-AND organization='Organization' AND model='Model' AND experiment='Experiment' AND frequency=\
-'Frequency' AND modeling_realm='Modeling' AND variable_name='Variable' AND ensemble='Ensemble'\
- AND time='Time';", ss.str());
+                      queryAdapterTest2.json2AutocompletionSqlTest(ss,
+                                                                   testJson,
+                                                                   lastComponent,
+                                                                   nameField));
   }
 
-  BOOST_AUTO_TEST_CASE(QueryAdapterPrefixBasedSearchFailureTest)
+  BOOST_AUTO_TEST_CASE(QueryAdapterDoFilterBasedSearchTest)
   {
-    initializeQueryAdapterTest2();
-
-    std::stringstream ss;
     Json::Value testJson;
+    testJson["activity"] = "testActivity";
+    testJson["product"] = "testProduct";
 
-    ss.str("");
-    ss.clear();
+    std::vector<std::pair<std::string, std::string>> resultComponents;
+
+    BOOST_CHECK_EQUAL(true, queryAdapterTest1.testDoFilterBasedSearch(testJson, resultComponents));
+    BOOST_CHECK_EQUAL(2, resultComponents.size());
+    for (auto it=resultComponents.begin(); it != resultComponents.end(); it++) {
+      if (it->first == "activity")
+        BOOST_CHECK_EQUAL(it->second, "testActivity");
+      if (it->first == "product")
+        BOOST_CHECK_EQUAL(it->second, "testProduct");
+    }
+
     testJson.clear();
-    testJson["??"] = "";
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson));
+    resultComponents.clear();
 
-    ss.str("");
-    ss.clear();
-    Json::Value testJson2; //simply clear does not work
-    testJson2[0] = "test"; // incorrect json object
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson2));
+    BOOST_CHECK_EQUAL(true, queryAdapterTest1.testDoFilterBasedSearch(testJson, resultComponents));
+    BOOST_CHECK_EQUAL(0, resultComponents.size());
 
-    ss.str("");
-    ss.clear();
-    Json::Value testJson3;
-    testJson3 = Json::Value(Json::arrayValue);  // incorrect json object
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson3));
+    testJson.clear();
+    resultComponents.clear();
 
-    ss.str("");
-    ss.clear();
-    Json::Value testJson4;
+    testJson["name"] = Json::nullValue;
+    BOOST_CHECK_EQUAL(false, queryAdapterTest1.testDoFilterBasedSearch(testJson, resultComponents));
+
+    testJson.clear();
+    resultComponents.clear();
     Json::Value param;
     param[0] = "test";
-    testJson4["name"] = param;  // incorrect json object
-    BOOST_CHECK_EQUAL(false, queryAdapterTest2.json2PrefixBasedSearchSqlTest(ss, testJson4));
+    testJson["name"] = param;
+
+    BOOST_CHECK_EQUAL(false, queryAdapterTest1.testDoFilterBasedSearch(testJson, resultComponents));
+
+    testJson.clear();
+    resultComponents.clear();
+    Json::Value tmp;
+    tmp[0] = "test";
+
+    BOOST_CHECK_EQUAL(false, queryAdapterTest1.testDoFilterBasedSearch(tmp, resultComponents));
+  }
+
+  BOOST_AUTO_TEST_CASE(QueryAdapterDoPrefixBasedSearchTest)
+  {
+    Json::Value testJson;
+    testJson["??"] = "/";
+
+    std::vector<std::pair<std::string, std::string>> resultComponents;
+
+    BOOST_CHECK_EQUAL(true, queryAdapterTest2.testDoPrefixBasedSearch(testJson, resultComponents));
+    BOOST_CHECK_EQUAL(0, resultComponents.size());
+
+    testJson.clear();
+    resultComponents.clear();
+
+    testJson["??"] = "/Activity/Product";
+    BOOST_CHECK_EQUAL(true, queryAdapterTest2.testDoPrefixBasedSearch(testJson, resultComponents));
+    BOOST_CHECK_EQUAL(2, resultComponents.size());
+
+    for (auto it=resultComponents.begin(); it != resultComponents.end(); it++) {
+      if (it->first == "activity")
+        BOOST_CHECK_EQUAL(it->second, "Activity");
+      if (it->first == "product")
+        BOOST_CHECK_EQUAL(it->second, "Product");
+    }
+
+    testJson.clear();
+    resultComponents.clear();
+
+    testJson["??"] = "";
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.testDoPrefixBasedSearch(testJson, resultComponents));
+
+    testJson.clear();
+    resultComponents.clear();
+
+    testJson = Json::Value(Json::arrayValue);
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.testDoPrefixBasedSearch(testJson, resultComponents));
+
+    testJson.clear();
+    resultComponents.clear();
+
+    Json::Value tmp;
+    tmp[0] = "test";
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.testDoPrefixBasedSearch(tmp, resultComponents));
+
+    testJson.clear();
+    resultComponents.clear();
+
+    Json::Value param, testJson2;
+    param[0] = "test";
+    testJson2["activity"] = param;
+    BOOST_CHECK_EQUAL(false, queryAdapterTest2.testDoPrefixBasedSearch(testJson2, resultComponents));
   }
 
   BOOST_AUTO_TEST_SUITE_END()

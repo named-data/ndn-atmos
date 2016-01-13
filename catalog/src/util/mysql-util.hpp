@@ -20,12 +20,15 @@
 #define ATMOS_UTIL_CONNECTION_DETAILS_HPP
 
 #include "mysql/mysql.h"
-
 #include <memory>
 #include <string>
+#include <zdb/zdb.h>
 
 namespace atmos {
 namespace util {
+
+#define MAX_DB_CONNECTIONS 100
+
 enum DatabaseOperation {CREATE, UPDATE, ADD, REMOVE, QUERY};
 struct ConnectionDetails {
 public:
@@ -38,15 +41,8 @@ public:
                     const std::string& passwordInput, const std::string& databaseInput);
 };
 
-std::shared_ptr<MYSQL>
-MySQLConnectionSetup(const ConnectionDetails& details);
-
-std::shared_ptr<MYSQL_RES>
-MySQLPerformQuery(std::shared_ptr<MYSQL> connection,
-                  const std::string& sql_query,
-                  DatabaseOperation op,
-                  bool& success,
-                  std::string& errMsg);
+std::shared_ptr<ConnectionPool_T>
+zdbConnectionSetup(const ConnectionDetails& details);
 
 } // namespace util
 } // namespace atmos
