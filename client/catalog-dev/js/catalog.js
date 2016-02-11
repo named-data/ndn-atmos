@@ -281,7 +281,7 @@ var Atmos = (function(){
     function(interest, data){
       console.log("Query response:", interest, data);
 
-      scope.name = interest.getName();
+      scope.name = data.getName();
 
       scope.getResults(0);
 
