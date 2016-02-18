@@ -503,7 +503,7 @@ QueryAdapter<DatabaseHandler>::onIncomingQueryInterest(const ndn::InterestFilter
         // catalog has generated some data, but still working on it
         return;
       }
-      interestPtr = queryInterest.shared_from_this();
+      interestPtr = std::make_shared<ndn::Interest>(queryInterest);
     }
 
     std::thread queryThread(&QueryAdapter<DatabaseHandler>::runJsonQuery,
