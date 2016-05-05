@@ -2,6 +2,7 @@
 (function() {
   "use strict";
   var config;
+  var conversions;
   Promise.all([
   new Promise(function(resolve, reject) {
     $.ajax('../config.json').done(function(data) {
@@ -12,8 +13,7 @@
       ga('send', 'event', 'error', 'config');
       reject();
     });
-  }
-  ),
+  }),
   new Promise(function(resolve, reject) {
     var timeout = setTimeout(function() {
       console.error("Document never loaded? Something bad has happened!");
@@ -23,8 +23,19 @@
       clearTimeout(timeout);
       resolve();
     });
-  }
-  )
+  }),
+  new Promise(function(resolve, reject) {
+    $.getJSON('../conversions.json').done(function(data) {
+      conversions = data;
+      resolve();
+    }).fail(function(){
+      console.error("Failed to get conversions.");
+      ga('send', 'event', 'error', 'config');
+      //reject(); We will continue anyways. We don't need this functionality.
+      conversions = {};
+      resolve();
+    });
+  })
   ]).then(function() {
 
     var getParameterByName = function(name) {
@@ -42,7 +53,7 @@
       console.warn("Failure in config overwrite, skipping.", e);
     }
 
-    new Atmos(config);
+    new Atmos(config, conversions);
   }, function() {
     console.error("Failed to initialize!");
     ga('send', 'event', 'error', 'init');
@@ -74,7 +85,7 @@ var Atmos = (function() {
    * @param {string} catalog - NDN path
    * @param {Object} config - Object of configuration options for a Face.
    */
-  var Atmos = function(config) {
+  var Atmos = function(config, conversions) {
 
     //Internal variables.
     this.results = [];
@@ -86,6 +97,7 @@ var Atmos = (function() {
 
     //Config/init
     this.config = config;
+    this.conversions = conversions;
 
     this.catalog = config['global']['catalogPrefix'];
     this.catalogPrefix = new Name(this.catalog);
@@ -592,6 +604,18 @@ var Atmos = (function() {
       }
 
       var scope = this;
+
+      //FIXME The following is temporary, it allows people to direct download from
+      //a single host with a small set of names. It is to demo the functionality but
+      //could use improvement. (Multiple servers, non static list, etc)
+      var directDls = $('#directDownloadList').empty();
+      names.forEach(function(name){
+        if (scope.conversions[name]){ //If the name exists in the conversions.
+          var ele = $('<a href="http://atmos-mwsc.ucar.edu/ucar/' + conversions[name] + '" class="list-group-item>' + name + '</a>');
+          directDls.append(ele);
+        }
+      });
+
       this.requestForm.on('submit', function(e) {
         //This will be registered for the next submit from the form.
         e.preventDefault();

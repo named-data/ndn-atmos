@@ -203,7 +203,7 @@ table:empty ~ .sk-cube-grid {
 
 #requestForm {
   max-width: 500px;
-  min-height: 300px;
+  /* min-height: 300px; */
   position: relative;
 }
 
@@ -259,4 +259,12 @@ table:empty ~ .sk-cube-grid {
   opacity: 0;
   margin: 0;
   padding: 0;
+}
+
+#direct-download-list:before {
+  content: "The following are available for direct download:";
+}
+
+#direct-download-list:empty:before {
+  content: "No names in the selection are available for direct download...";
 }
