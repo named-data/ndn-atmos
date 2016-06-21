@@ -264,6 +264,7 @@ var Atmos = (function() {
     this.resultTable.popover({
       selector: ".metaDataLink",
       content: function() {
+        $('.metaDataLink').not(this).popover('destroy');
         return scope.getMetaData(this);
       },
       title: "Metadata",
@@ -283,6 +284,13 @@ var Atmos = (function() {
       var match = exp.exec(metaData);
       var filename = match[0].replace(/netcdf /, '') + '.nc';
       scope.request(null , filename);
+    });
+
+    //Allow the title to change the tab
+    $('#brand-title').click(function(){
+      //Correct active class on tabs.
+      $('#explore-tab').removeClass('active');
+      $('#search-tab').addClass('active');
     });
 
   }
@@ -846,7 +854,7 @@ var Atmos = (function() {
       var n2 = new Name(name);
       n2.appendSegment(segment);
 
-      scope.expressInterest(n2, handleData, function() {});
+      scope.expressInterest(n2, handleData, function(err, interest){failure(interest)});
       //Forward to handleData and ignore error
     }
 

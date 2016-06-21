@@ -155,12 +155,12 @@ body#body {}
 
 .treeExplorer .treeExplorerExpander::before {
   font-family: "Glyphicons Halflings";
-  content: "\e080";
+  content: "+";
   color: gray;
 }
 
 .treeExplorer .open > .nodeContent > .treeExplorerExpander::before {
-  content: "\e114";
+  content: "\2212";
 }
 
 .treeExplorer .file > .nodeContent > .treeExplorerExpander {
