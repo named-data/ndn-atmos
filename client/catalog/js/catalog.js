@@ -3,9 +3,9 @@
   "use strict";
   var config;
   var conversions;
-  Promise.all([
-  new Promise(function(resolve, reject) {
-    $.ajax('../config.json').done(function(data) {
+
+  Promise.all([new Promise(function(resolve, reject) {
+    $.ajax('config.json').done(function(data) {
       config = data;
       resolve();
     }).fail(function() {
@@ -13,8 +13,7 @@
       ga('send', 'event', 'error', 'config');
       reject();
     });
-  }),
-  new Promise(function(resolve, reject) {
+  }), new Promise(function(resolve, reject) {
     var timeout = setTimeout(function() {
       console.error("Document never loaded? Something bad has happened!");
       reject();
@@ -23,28 +22,24 @@
       clearTimeout(timeout);
       resolve();
     });
-  }),
-  new Promise(function(resolve, reject) {
+  }), new Promise(function(resolve, reject) {
     $.getJSON('../conversions.json').done(function(data) {
       conversions = data;
       resolve();
-    }).fail(function(){
+    }).fail(function() {
       console.error("Failed to get conversions.");
       ga('send', 'event', 'error', 'config');
       //reject(); We will continue anyways. We don't need this functionality.
       conversions = {};
       resolve();
     });
-  })
-  ]).then(function() {
-
+  })]).then(function() {
     var getParameterByName = function(name) {
       name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
       var regex = new RegExp("[\\?&]" + name + "=([^&#]*)");
       var results = regex.exec(location.search);
-      return results === null  ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
+      return results === null ? "" : decodeURIComponent(results[1].replace(/\+/g, " "));
     }
-
     //Overwrite config if present. Any failure will just cause this to be skipped.
     try {
       var configParam = JSON.parse(getParameterByName('config'));
@@ -52,19 +47,16 @@
     } catch (e) {
       console.warn("Failure in config overwrite, skipping.", e);
     }
-
-    new Atmos(config, conversions);
+    new Atmos(config,conversions);
   }, function() {
     console.error("Failed to initialize!");
     ga('send', 'event', 'error', 'init');
   });
-})();
 
+})();
 var Atmos = (function() {
   "use strict";
-
   var closeButton = '<button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>';
-
   var guid = function() {
     var d = new Date().getTime();
     var uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -74,7 +66,6 @@ var Atmos = (function() {
     });
     return uuid;
   }
-
   /**
    * Atmos
    * @version 2.0
@@ -86,7 +77,6 @@ var Atmos = (function() {
    * @param {Object} config - Object of configuration options for a Face.
    */
   var Atmos = function(config, conversions) {
-
     //Internal variables.
     this.results = [];
     this.resultCount = Infinity;
@@ -101,7 +91,6 @@ var Atmos = (function() {
 
     this.catalog = config['global']['catalogPrefix'];
     this.catalogPrefix = new Name(this.catalog);
-
     this.face = new Face(config['global']['faceConfig']);
 
     //Easy access dom variables
@@ -116,12 +105,10 @@ var Atmos = (function() {
     this.requestForm = $('#requestForm');
 
     var scope = this;
-
     $('.requestSelectedButton').click(function() {
       ga('send', 'event', 'button', 'click', 'request');
       scope.request(scope.resultTable.find('.resultSelector:checked:not([disabled])').parent().parent());
     });
-
     this.filterSetup();
 
     //Init autocomplete
@@ -167,12 +154,14 @@ var Atmos = (function() {
         scope.getResults(scope.page + 1);
       }
     });
+
     this.resultMenu.find('.previous').click(function() {
       ga('send', 'event', 'button', 'click', 'previous');
       if (!$(this).hasClass('disabled')) {
         scope.getResults(scope.page - 1);
       }
     });
+
     this.resultMenu.find('.clearResults').click(function() {
       ga('send', 'event', 'button', 'click', 'resultClear');
       scope.clearResults();
@@ -183,19 +172,15 @@ var Atmos = (function() {
 
     //Change the number of results per page handler
     var rpps = $('.resultsPerPageSelector').click(function() {
-
       var t = $(this);
-
       if (t.hasClass('active')) {
         return;
       }
-
       rpps.find('.active').removeClass('active');
       t.addClass('active');
       scope.resultsPerPage = Number(t.text());
       scope.getResults(0);
       //Force return to page 1;
-
     });
 
     //Init tree search
@@ -205,14 +190,12 @@ var Atmos = (function() {
       scope.autoComplete(path, function(data) {
         var list = data.next;
         var last = (data.lastComponent === true);
-
         if (last) {
           console.log("Redirecting last element request to a search.");
           scope.clearResults();
           scope.query(scope.catalog, {
             '??': path
-          },
-          function(interest, data) {
+          }, function(interest, data) {
             console.log("Search response", interest, data);
             scope.name = interest.getName();
             scope.getResults(0);
@@ -223,7 +206,6 @@ var Atmos = (function() {
           return;
           //Don't call the callback
         }
-
         console.log("Autocomplete response", list);
         callback(list.map(function(element) {
           return (path == "/" ? "/" : "") + element + "/";
@@ -233,34 +215,24 @@ var Atmos = (function() {
 
     $('#treeSearch').on('click', '.treeSearch', function() {
       var t = $(this);
-
       scope.clearResults();
-
       var path = t.parent().parent().attr('id');
-
       console.log("Tree search:", path);
-
       scope.query(scope.catalog, {
         '??': path
-      },
-      function(interest, data) {
+      }, function(interest, data) {
         //Success
         console.log("Tree search response", interest, data);
-
         scope.name = interest.getName();
-
         scope.getResults(0);
-      },
-      function(interest) {
+      }, function(interest) {
         //Failure
         console.warn("Request failed! Timeout", interest);
         scope.createAlert("Request timed out.\"" + interest.getName().toUri() + "\" See console for details.");
       });
-
     });
 
     this.setupRequestForm();
-
     this.resultTable.popover({
       selector: ".metaDataLink",
       content: function() {
@@ -287,14 +259,13 @@ var Atmos = (function() {
     });
 
     //Allow the title to change the tab
-    $('#brand-title').click(function(){
+    $('#brand-title').click(function() {
       //Correct active class on tabs.
-      $('#explore-tab').removeClass('active');
+      $('#path-search-tab').removeClass('active');
+      $('#tree-search-tab').removeClass('active');
       $('#search-tab').addClass('active');
     });
-
   }
-
   Atmos.prototype.clearResults = function() {
     this.results = [];
     //Drop any old results.
@@ -306,66 +277,42 @@ var Atmos = (function() {
 
   Atmos.prototype.pathSearch = function() {
     var value = this.searchInput.val();
-
     this.clearResults();
-
     var scope = this;
-
     this.query(this.catalog, {
       "??": value
-    },
-    function(interest, data) {
+    }, function(interest, data) {
       console.log("Query response:", interest, data);
-
       scope.name = interest.getName();
-
       scope.getResults(0);
-
-    },
-    function(interest) {
+    }, function(interest) {
       console.warn("Request failed! Timeout", interest);
       scope.createAlert("Request timed out. \"" + interest.getName().toUri() + "\" See console for details.");
     });
-
   }
 
   Atmos.prototype.search = function() {
-
     var filters = this.getFilters();
-
     console.log("Search started!", this.searchInput.val(), filters);
-
     console.log("Initiating query");
-
     this.clearResults();
-
     var scope = this;
-
-    this.query(this.catalog, filters,
-    function(interest, data) {
+    this.query(this.catalog, filters, function(interest, data) {
       //Response function
       console.log("Query Response:", interest, data);
-
       scope.name = interest.getName();
-
       scope.getResults(0);
-
     }, function(interest) {
       //Timeout function
       console.warn("Request failed after 3 attempts!", interest);
       scope.createAlert("Request failed after 3 attempts. \"" + interest.getName().toUri() + "\" See console for details.");
     });
-
   }
 
   Atmos.prototype.autoComplete = function(field, callback) {
-
     var scope = this;
-
     var result = {};
-
     const getAll = function(interest, data) {
-
       if (data.getContent().length !== 0) {
         var resp = JSON.parse(data.getContent().toString().replace(/[\n\0]/g, ""));
         if (result.next) {
@@ -376,11 +323,11 @@ var Atmos = (function() {
       } else {
         callback(result);
       }
-
       var name = data.getName();
       var segment = name.components[name.getComponentCount() - 1];
-      if (segment.toSegment() !== data.getMetaInfo().getFinalBlockId().toSegment()){
-        name = name.getPrefix(-1); //Remove segment
+      if (segment.toSegment() !== data.getMetaInfo().getFinalBlockId().toSegment()) {
+        name = name.getPrefix(-1);
+        //Remove segment
         name.appendSegment(segment.toSegment() + 1);
         scope.expressInterest(name, getAll, function() {
           console.warn("Autocomplete timed out, results may be incomplete.");
@@ -390,28 +337,20 @@ var Atmos = (function() {
       } else {
         callback(result);
       }
-
     }
-
     this.query(this.catalog, {
       "?": field
     }, getAll);
-
   }
 
   Atmos.prototype.showResults = function(resultIndex) {
-
     var results = this.results.slice(this.resultsPerPage * resultIndex, this.resultsPerPage * (resultIndex + 1));
-
-    var resultDOM = $(
-    results.reduce(function(prev, current) {
+    var resultDOM = $(results.reduce(function(prev, current) {
       prev.push('<tr><td><input class="resultSelector" type="checkbox"></td><td class="popover-container"><a href="#" class="metaDataLink">');
       prev.push(current);
       prev.push('</a></td></tr>');
       return prev;
-    }, ['<tr><th><input id="resultSelectAll" type="checkbox" title="Select All"> Select</th><th>Name</th></tr>']).join('')
-    );
-
+    }, ['<tr><th><input id="resultSelectAll" type="checkbox"> Select All</th><th>Name</th></tr>']).join(''));
     resultDOM.find('#resultSelectAll').click(function() {
       if ($(this).is(':checked')) {
         resultDOM.find('.resultSelector:not([disabled])').prop('checked', true);
@@ -419,31 +358,26 @@ var Atmos = (function() {
         resultDOM.find('.resultSelector:not([disabled])').prop('checked', false);
       }
     });
-
     this.resultTable.hide().empty().append(resultDOM).slideDown('slow');
-
     this.resultMenu.find('.pageNumber').text(resultIndex + 1);
     this.resultMenu.find('.pageLength').text(this.resultsPerPage * resultIndex + results.length);
-
     if (this.resultsPerPage * (resultIndex + 1) >= this.resultCount) {
       this.resultMenu.find('.next').addClass('disabled');
     } else if (resultIndex === 0) {
       this.resultMenu.find('.next').removeClass('disabled');
     }
-
     if (resultIndex === 0) {
       this.resultMenu.find('.previous').addClass('disabled');
     } else if (resultIndex === 1) {
       this.resultMenu.find('.previous').removeClass('disabled');
     }
-
     $.scrollTo("#results", 500, {
       interrupt: true
     });
-
   }
 
   Atmos.prototype.getResults = function(index) {
+
     var scope = this;
 
     if ($('#results').hasClass('hidden')) {
@@ -463,17 +397,14 @@ var Atmos = (function() {
     }
 
     var interestName = new Name(scope.name);
-
     // Interest name should be /<catalog-prefix>/query/<query-param>/<version>/<#seq>
     if (scope.name.size() === (scope.catalogPrefix.size() + 3)) {
       interestName = interestName.appendSegment(scope.retrievedSegments++);
       //console.log("Requesting data index: (", scope.retrievedSegments - 1, ") at ", interestName.toUri());
     }
 
-    this.expressInterest(interestName,
-    function(interest, data) {
+    this.expressInterest(interestName, function(interest, data) {
       //Response
-
       if (data.getContent().length === 0) {
         scope.resultMenu.find('.totalResults').text(0);
         scope.resultMenu.find('.pageNumber').text(0);
@@ -495,45 +426,29 @@ var Atmos = (function() {
       }
 
       scope.results = scope.results.concat(content.results);
-
       scope.resultCount = content.resultCount;
-
       scope.resultMenu.find('.totalResults').text(scope.resultCount);
-
       scope.page = index;
-
       // reset scope.name
       scope.name = new Name(data.getName().getPrefix(scope.catalogPrefix.size() + 3));
-
       scope.getResults(index);
       //Keep calling this until we have enough data.
-
-    }, function() {}//Ignore failure
-    );
+    }, function() {});//Ignore failure
 
   }
-
   Atmos.prototype.query = function(prefix, parameters, callback, timeout) {
-
     var queryPrefix = new Name(prefix);
     queryPrefix.append("query");
-
     var jsonString = JSON.stringify(parameters);
     queryPrefix.append(jsonString);
-
     this.expressInterest(queryPrefix, callback, timeout);
-
   }
 
-
   Atmos.prototype.expressInterest = function(name, success, failure) {
-
     var interest = new Interest(name);
-    interest.setInterestLifetimeMilliseconds(1500);
+    interest.setInterestLifetimeMilliseconds(500);
     interest.setMustBeFresh(true);
-
     const face = this.face;
-
     async.retry(4, function(done) {
       face.expressInterest(interest, function(interest, data) {
         done();
@@ -547,7 +462,6 @@ var Atmos = (function() {
         failure(interest);
       }
     });
-
   }
 
   /**
@@ -572,12 +486,10 @@ var Atmos = (function() {
    * @param {string} type - Override the alert type.
    */
   Atmos.prototype.createAlert = function(message, type) {
-
     var alert = $('<div class="alert"><div>');
     alert.addClass(type ? type : 'alert-info');
     alert.text(message);
     alert.append(closeButton);
-
     this.alerts.append(alert);
   }
 
@@ -588,22 +500,19 @@ var Atmos = (function() {
    * @param subsetFileName {String} If present then do a subsetting request instead.
    */
   Atmos.prototype.request = function() {
-
     //Pseudo globals.
     var keyChain;
     var certificateName;
     var keyAdded = false;
-
     return function(elements, subsetFilename) {
 
       var names = [];
+
       $(elements).find('.metaDataLink').each(function() {
         var name = $(this).text();
         names.push(name);
       });
-
       var subset = false;
-
       if (!subsetFilename) {
         $('#subsetting').hide();
       } else {
@@ -617,8 +526,9 @@ var Atmos = (function() {
       //a single host with a small set of names. It is to demo the functionality but
       //could use improvement. (Multiple servers, non static list, etc)
       var directDls = $('#directDownloadList').empty();
-      names.forEach(function(name){
-        if (scope.conversions[name]){ //If the name exists in the conversions.
+      names.forEach(function(name) {
+        if (scope.conversions[name]) {
+          //If the name exists in the conversions.
           var ele = $('<a href="http://atmos-mwsc.ucar.edu/ucar/' + conversions[name] + '" class="list-group-item>' + name + '</a>');
           directDls.append(ele);
         }
@@ -627,9 +537,7 @@ var Atmos = (function() {
       this.requestForm.on('submit', function(e) {
         //This will be registered for the next submit from the form.
         e.preventDefault();
-
         $('#request .alert').remove();
-
         var variables = [];
         if (subset) {
           $('#subsetVariables .row').each(function() {
@@ -655,12 +563,11 @@ var Atmos = (function() {
         }
 
         $('#request').modal('hide');
-        //Initial params are ok. We can close the form.
 
+        //Initial params are ok. We can close the form.
         scope.cleanRequestForm();
 
-        $(this).off(e);
-        //Don't fire this again, the request must be regenerated
+        $(this).off(e); //Don't fire this again, the request must be regenerated
 
         //Key setup
         if (!keyAdded) {
@@ -669,39 +576,26 @@ var Atmos = (function() {
             console.error("Missing/invalid key! This must be configured in the config on the server.", scope.config.demoKey);
             return;
           }
-
           //FIXME base64 may or may not exist in other browsers. Need a new polyfill.
           var pub = new Buffer(base64.toByteArray(scope.config.retrieval.demoKey.pub));
           //MUST be a Buffer (Buffer != Uint8Array)
           var priv = new Buffer(base64.toByteArray(scope.config.retrieval.demoKey.priv));
-
           var identityStorage = new MemoryIdentityStorage();
           var privateKeyStorage = new MemoryPrivateKeyStorage();
-          keyChain = new KeyChain(new IdentityManager(identityStorage,privateKeyStorage),
-          new SelfVerifyPolicyManager(identityStorage));
-
+          keyChain = new KeyChain(new IdentityManager(identityStorage,privateKeyStorage),new SelfVerifyPolicyManager(identityStorage));
           var keyName = new Name("/retrieve/DSK-123");
-          certificateName = keyName.getSubName(0, keyName.size() - 1)
-          .append("KEY").append(keyName.get(-1))
-          .append("ID-CERT").append("0");
-
+          certificateName = keyName.getSubName(0, keyName.size() - 1).append("KEY").append(keyName.get(-1)).append("ID-CERT").append("0");
           identityStorage.addKey(keyName, KeyType.RSA, new Blob(pub,false));
           privateKeyStorage.setKeyPairForKeyName(keyName, KeyType.RSA, pub, priv);
-
           scope.face.setCommandSigningInfo(keyChain, certificateName);
-
           keyAdded = true;
-
         }
 
         //Retrieval
         var retrievePrefix = new Name("/catalog/ui/" + guid());
-
-        scope.face.registerPrefix(retrievePrefix,
-        function(prefix, interest, face, interestFilterId, filter) {
+        scope.face.registerPrefix(retrievePrefix, function(prefix, interest, face, interestFilterId, filter) {
           //On Interest
           //This function will exist until the page exits but will likely only be used once.
-
           var data = new Data(interest.getName());
           var content;
           if (subset) {
@@ -712,8 +606,10 @@ var Atmos = (function() {
           } else {
             content = JSON.stringify(names);
           }
+
           //Blob breaks the data! Don't use it
           data.setContent(content);
+
           //TODO Packetize this.
           keyChain.sign(data, certificateName);
 
@@ -725,7 +621,6 @@ var Atmos = (function() {
             console.error("Failed to respond to", interest.getName().toUri(), data);
             scope.createAlert("Data retrieval failed.");
           }
-
         }, function(prefix) {
           //On fail
           scope.createAlert("Failed to register the retrieval URI! See console for details.", "alert-danger");
@@ -734,30 +629,21 @@ var Atmos = (function() {
           //On success
           var name = new Name(dest.text());
           name.append(prefix);
-
-          scope.expressInterest(name,
-          function(interest, data) {
+          scope.expressInterest(name, function(interest, data) {
             //Success
             console.log("Request for", name.toUri(), "succeeded.", interest, data);
-          },
-          function() {
+          }, function() {
             console.warn("Failed to request from retrieve agent.");
-          }
-          );
-        }
-        );
-
+          });
+        });
       });
       $('#request').modal();
       //This forces the form to be the only option.
-
     }
-
   }();
 
   Atmos.prototype.filterSetup = function() {
     //Filter setup
-
     var prefix = new Name(this.catalog).append("filters-initialization");
 
     var scope = this;
@@ -766,19 +652,19 @@ var Atmos = (function() {
       //Success
       var raw = JSON.parse(data.replace(/[\n\0]/g, ''));
       //Remove null byte and parse
-
       console.log("Filter categories:", raw);
 
       $.each(raw, function(index, object) {
         //Unpack list of objects
+
         $.each(object, function(category, searchOptions) {
           //Unpack category from object (We don't know what it is called)
           //Create the category
           var e = $('<li><a href="#">' + category.replace(/_/g, " ") + '</a><ul class="subnav nav nav-pills nav-stacked"></ul></li>');
-
           var sub = e.find('ul.subnav');
           $.each(searchOptions, function(index, name) {
             //Create the filter list inside the category
+
             var item = $('<li><a href="#">' + name + '</a></li>');
             sub.append(item);
             item.click(function() {
@@ -792,19 +678,15 @@ var Atmos = (function() {
                 item.addClass('active');
                 var filter = $('<span class="label label-default"></span>');
                 filter.text(category + ':' + name);
-
                 scope.filters.append(filter);
-
                 filter.click(function() {
                   //Click on a filter
                   filter.remove();
                   item.removeClass('active');
                 });
               }
-
             });
           });
-
           //Toggle the menus. (Only respond when the immediate tab is clicked.)
           e.find('> a').click(function() {
             scope.categories.find('.subnav').slideUp();
@@ -817,19 +699,15 @@ var Atmos = (function() {
               //Make it visible and look at it.
             }
           });
-
           scope.categories.append(e);
-
         });
       });
-
     }, function(interest) {
       //Timeout
       scope.createAlert("Failed to initialize the filters!", "alert-danger");
       console.error("Failed to initialize filters!", interest);
       ga('send', 'event', 'error', 'filters');
     });
-
   }
 
   /**
@@ -842,41 +720,30 @@ var Atmos = (function() {
    * @param stop {boolean} stop if no finalBlock.
    */
   Atmos.prototype.getAll = function(prefix, callback, failure, stop) {
-
     var scope = this;
     var d = [];
-
     var name = new Name(prefix);
     var segment = 0;
-
     var request = function() {
-
       var n2 = new Name(name);
       n2.appendSegment(segment);
-
-      scope.expressInterest(n2, handleData, function(err, interest){failure(interest)});
+      scope.expressInterest(n2, handleData, function(err, interest) {
+        failure(interest)
+      });
       //Forward to handleData and ignore error
     }
-
     var handleData = function(interest, data) {
-
       d.push(data.getContent().toString());
-
       var hasFinalBlock = data.getMetaInfo().getFinalBlockId().value.length === 0;
       var finalBlockStop = hasFinalBlock && stop;
-
-      if (finalBlockStop ||
-      (!hasFinalBlock && interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment())) {
+      if (finalBlockStop || (!hasFinalBlock && interest.getName().get(-1).toSegment() == data.getMetaInfo().getFinalBlockId().toSegment())) {
         callback(d.join(""));
       } else {
         segment++;
         request();
       }
-
     }
-
     request();
-
   }
 
   Atmos.prototype.cleanRequestForm = function() {
@@ -889,32 +756,26 @@ var Atmos = (function() {
   }
 
   Atmos.prototype.setupRequestForm = function() {
-
     var scope = this;
-
     this.requestForm.find('#requestCancel').click(function() {
       $('#request').unbind('submit')//Removes all event handlers.
       .modal('hide');
       //Hides the form.
       scope.cleanRequestForm();
     });
-
     var dests = $(this.config['retrieval']['destinations'].reduce(function(prev, current) {
       prev.push('<li><a href="#">');
       prev.push(current);
       prev.push("</a></li>");
       return prev;
     }, []).join(""));
-
-    this.requestForm.find('#requestDest').append(dests)
-    .on('click', 'a', function(e) {
+    this.requestForm.find('#requestDest').append(dests).on('click', 'a', function(e) {
       $('#requestDest .active').removeClass('active');
       var t = $(this);
       t.parent().addClass('active');
       $('#requestDropText').text(t.text());
       $('#requestDest').prev().removeClass('btn-default').addClass('btn-success');
     });
-
     var addVariable = function(selector) {
       var ele = $(selector).clone().attr('id', '');
       ele.find('.close').click(function() {
@@ -922,7 +783,6 @@ var Atmos = (function() {
       });
       $('#subsetVariables').append(ele);
     }
-
     $('#subsetAddVariableBtn').click(function() {
       addVariable('#customTemplate');
     });
@@ -932,29 +792,21 @@ var Atmos = (function() {
     $('#subsetAddLocVariable').click(function() {
       addVariable('#locationTemplate');
     });
-
   }
 
   Atmos.prototype.getMetaData = (function() {
-
     var cache = {};
-
     return function(element) {
       var name = $(element).text();
-
       ga('send', 'event', 'request', 'metaData');
-
       var subsetButton = '<button class="btn btn-default subsetButton" type="button">Subset</button>';
-
       if (cache[name]) {
         return [subsetButton, '<pre class="metaData">', cache[name], '</pre>'].join('');
       }
-
       var prefix = new Name(name).append("metadata");
       var id = guid();
       //We need an id because the return MUST be a string.
       var ret = '<div id="' + id + '"><span class="fa fa-spinner fa-spin"></span></div>';
-
       this.getAll(prefix, function(data) {
         var el = $('<pre class="metaData"></pre>');
         el.text(data);
@@ -967,9 +819,7 @@ var Atmos = (function() {
         $('#' + id).text("The metadata is unavailable for this name.");
         console.log("Data is unavailable for " + name);
       });
-
       return ret;
-
     }
   })();
 

@@ -153,22 +153,21 @@ body#body {}
   display: block;
 }
 
-.treeExplorer .treeExplorerExpander::before {
-  font-family: "Glyphicons Halflings";
-  content: "+";
+.treeExplorer .treeExplorerExpander:before {
+  content: "[+]";
   color: gray;
 }
 
-.treeExplorer .open > .nodeContent > .treeExplorerExpander::before {
-  content: "\2212";
+.treeExplorer .open > .nodeContent > .treeExplorerExpander:before {
+  content: "[-]";
 }
 
 .treeExplorer .file > .nodeContent > .treeExplorerExpander {
   cursor: default;
 }
 
-.treeExplorer .file > .nodeContent > .treeExplorerExpander::before {
-  content: "\e022"
+.treeExplorer .file > .nodeContent > .treeExplorerExpander:before {
+  content: "[=]"
 }
 
 #popup {
