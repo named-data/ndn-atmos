@@ -1074,7 +1074,7 @@ prepareSegmentsByParams(std::vector<std::pair<std::string, std::string>>& queryP
   }
 
   // get name list statement
-  std::string getNameListSqlStr("SELECT name FROM ");
+  std::string getNameListSqlStr("SELECT name, has_metadata FROM ");
   getNameListSqlStr += m_databaseTable;
   getNameListSqlStr += " WHERE ";
   for (size_t i = 0; i < m_nameFields.size(); i++) {
@@ -1127,15 +1127,24 @@ QueryAdapter<DatabaseHandler>::generateSegments(ResultSet_T& res,
                                                 bool lastComponent)
 {
   uint64_t segmentno = 0;
-  Json::Value tmp;
-  Json::Value resultjson;
+  Json::Value tmp, buf, resultjson;
   Json::FastWriter fastWriter;
+
+  bool twoColumns = false;
+  if (ResultSet_getColumnCount(res) > 1) {
+    twoColumns = true;
+  }
 
   uint64_t viewstart = 0, viewend = 0;
   while (ResultSet_next(res)) {
-    const char *name = ResultSet_getString(res, 1);
-    tmp.append(name);
-    const std::string tmpString = fastWriter.write(tmp);
+    tmp["name"] = ResultSet_getString(res, 1);
+    if (twoColumns) {
+      tmp["has_metadata"] = ResultSet_getInt(res, 2);
+    } else {
+      tmp["has_metadata"] = 0;
+    }
+    buf.append(tmp);
+    const std::string tmpString = fastWriter.write(buf);
     if (tmpString.length() > PAYLOAD_LIMIT) {
       std::shared_ptr<ndn::Data> data
         = makeReplyData(segmentPrefix, resultjson, segmentno, false,
@@ -1144,12 +1153,15 @@ QueryAdapter<DatabaseHandler>::generateSegments(ResultSet_T& res,
       m_cache.insert(*data);
       m_face->put(*data);
       m_mutex.unlock();
-      tmp.clear();
+
+      buf.clear();
       resultjson.clear();
       segmentno++;
       viewstart = viewend + 1;
     }
-    resultjson.append(name);
+    resultjson.append(tmp);
+    buf = resultjson;
+    tmp.clear();
     viewend++;
   }
   std::shared_ptr<ndn::Data> data

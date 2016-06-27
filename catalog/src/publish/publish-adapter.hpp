@@ -491,6 +491,7 @@ PublishAdapter<ConnectionPool_T>::initializeDatabase(const util::ConnectionDetai
     for (size_t i = 0; i < m_nameFields.size(); i++) {
       ss << "`" << m_nameFields[i] << "` varchar(100) NOT NULL, ";
     }
+    ss << "`has_metadata` tinyint(1) DEFAULT NULL, ";
     ss << "PRIMARY KEY (`id`), UNIQUE KEY `sha256` (`sha256`)\
        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;";
 
