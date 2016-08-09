@@ -8,8 +8,6 @@ html, body {
   background-attachment: fixed;
 }
 
-body#body {}
-
 .sidebar {
   height: 100%;
   max-height: 100%;
@@ -170,7 +168,7 @@ body#body {}
   content: "[=]"
 }
 
-#popup {
+.popup {
   top: 0;
   left: 0;
   position: fixed;
@@ -183,21 +181,13 @@ body#body {}
   pointer-events: none;
 }
 
-#popup > * {
+.popup > * {
   display: none;
   pointer-events: auto;
 }
 
-.modal-open, #request {
+.modal-open, #request, #loading {
   padding-right: 0 !important;
-}
-
-.sk-cube-grid {
-  display: none;
-}
-
-table:empty ~ .sk-cube-grid {
-  display: block;
 }
 
 #requestForm {
@@ -266,4 +256,12 @@ table:empty ~ .sk-cube-grid {
 
 #direct-download-list:empty:before {
   content: "No names in the selection are available for direct download...";
+}
+
+#loading.loading #cancel-text {
+  display: none;
+}
+
+#loading.cancelled #loading-text {
+  display: none;
 }

@@ -24,31 +24,22 @@ ga('send', 'pageview');
 
 <!-- Styles -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css">
-<link rel="stylesheet" href="css/cubeLoader.css">
 <link rel="stylesheet" href="css/theme.min.css">
 <link rel="stylesheet" href="css/style.css">
 
 <!-- Scripts -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.2.3/jquery.min.js">
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-scrollTo/2.1.2/jquery.scrollTo.min.js">
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.6/js/bootstrap.min.js">
-</script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/async/1.5.2/async.min.js">
-</script>
-<script src="../ndn-js/build/ndn.min.js">
-</script>
-<script src="js/autocomplete.js">
-</script>
-<script src="js/treeExplorer.js">
-</script>
-<script src="js/catalog.js">
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/async/2.0.1/async.min.js"></script>
+<script src="../ndn-js/build/ndn.min.js"></script>
+<script src="js/autocomplete.js"></script>
+<script src="js/treeExplorer.js"></script>
+<script src="js/loading-overlay.js"></script>
+<script src="js/catalog.js"></script>
 
 </head>
 
-<body id="body">
+<body>
 
   <div id="templates">
     <div class="row" id="timeTemplate">
@@ -120,7 +111,7 @@ ga('send', 'pageview');
         <div class="panel panel-info tab-pane fade in active" id="filterSearch">
           <div class="panel-heading">Filter Search</div>
           <div class="panel-body">
-            <div>
+            <div class="well">
               <div id="filters"></div>
               <button id="searchButton" class="btn btn-primary right-fix">Search</button>
             </div>
@@ -191,17 +182,6 @@ ga('send', 'pageview');
               <div class="navbar-text navbar-right">(Page <span class="pageNumber">0</span>) <span class="pageLength">0</span>/<span class="totalResults">0</span> Results</div>
             </nav>
             <table id="resultTable" class="table"></table>
-            <div class="sk-cube-grid">
-              <div class="sk-cube sk-cube1"></div>
-              <div class="sk-cube sk-cube2"></div>
-              <div class="sk-cube sk-cube3"></div>
-              <div class="sk-cube sk-cube4"></div>
-              <div class="sk-cube sk-cube5"></div>
-              <div class="sk-cube sk-cube6"></div>
-              <div class="sk-cube sk-cube7"></div>
-              <div class="sk-cube sk-cube8"></div>
-              <div class="sk-cube sk-cube9"></div>
-            </div>
             <nav class="navbar navbar-inverse col-md-12 resultMenu">
               <ul class="nav navbar-nav navbar-left">
                 <li><a href="#" class="requestSelectedButton">Request Selected</a></li>
@@ -235,7 +215,7 @@ ga('send', 'pageview');
 
   </div>
 
-  <div id="popup">
+  <div class="popup">
     <div id="request" class="panel panel-primary">
       <div class="panel-heading">Confirmation</div>
       <div class="panel-body">
@@ -278,6 +258,28 @@ ga('send', 'pageview');
         </form>
         <div>
           <div class="list-group" id="direct-download-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="popup">
+    <div id="loading" class="panel panel-primary loading">
+      <div class="panel-heading">Loading</div>
+      <div class="panel-body">
+        <span id="loading-text">Please wait while we finish loading your request.</span>
+        <span id="cancel-text">Your request has been cancelled.</span>
+        <div class="row">
+          <div class="col-sm-12">
+            <div class="progress">
+              <div class="progress-bar progress-bar-striped active" style="width:100%;">Loading...</div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-sm-12">
+            <button id="loading-cancel" class="btn btn-danger pull-right">Cancel</button>
+          </div>
         </div>
       </div>
     </div>

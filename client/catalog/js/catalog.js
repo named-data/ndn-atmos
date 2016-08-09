@@ -377,9 +377,9 @@ var Atmos = (function() {
     } else if (resultIndex === 1) {
       this.resultMenu.find('.previous').removeClass('disabled');
     }
-    $.scrollTo("#results", 500, {
-      interrupt: true
-    });
+    $('body').animate({
+      scrollTop: $("#results").offset().top
+    }, 500);
   }
 
   Atmos.prototype.getResults = function(index) {
@@ -455,19 +455,29 @@ var Atmos = (function() {
     interest.setInterestLifetimeMilliseconds(500);
     interest.setMustBeFresh(true);
     const face = this.face;
-    async.retry(4, function(done) {
-      face.expressInterest(interest, function(interest, data) {
-        done();
-        success(interest, data);
-      }, function(interest) {
-        done("Interest timed out 4 times.", interest);
+    var cancelled = false;
+    var attempt = 0;
+    openLoadingOverlay(function(update){
+      async.retry(4, function(done) {
+        face.expressInterest(interest, function(interest, data) {
+          update(true, attempt, attempt);
+          done();
+          success(interest, data);
+        }, function(interest) {
+          update(false, attempt++, attempt);
+          done("Timeout", interest);
+        });
+      }, function(err, interest) {
+        update(true, attempt, attempt);
+        if (err) {
+          console.log(err, interest);
+          failure(interest);
+        }
       });
-    }, function(err, interest) {
-      if (err) {
-        console.log(err, interest);
-        failure(interest);
-      }
+    }, function(){
+      cancelled = true;
     });
+
   }
 
   /**
@@ -673,7 +683,8 @@ var Atmos = (function() {
 
             var item = $('<li><a href="#">' + name + '</a></li>');
             sub.append(item);
-            item.click(function() {
+            item.find('a').click(function(e) {
+              e.preventDefault();
               //Click on the side menu filters
               if (item.hasClass('active')) {
                 //Does the filter already exist?
@@ -685,7 +696,7 @@ var Atmos = (function() {
                 var filter = $('<span class="label label-default"></span>');
                 filter.text(category + ':' + name);
                 scope.filters.append(filter);
-                filter.click(function() {
+                filter.click(function(e) {
                   //Click on a filter
                   filter.remove();
                   item.removeClass('active');
@@ -694,7 +705,8 @@ var Atmos = (function() {
             });
           });
           //Toggle the menus. (Only respond when the immediate tab is clicked.)
-          e.find('> a').click(function() {
+          e.find('> a').click(function(e) {
+            e.preventDefault();
             scope.categories.find('.subnav').slideUp();
             var t = $(this).siblings('.subnav');
             if (!t.is(':visible')) {
