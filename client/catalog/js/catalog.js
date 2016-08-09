@@ -346,9 +346,15 @@ var Atmos = (function() {
   Atmos.prototype.showResults = function(resultIndex) {
     var results = this.results.slice(this.resultsPerPage * resultIndex, this.resultsPerPage * (resultIndex + 1));
     var resultDOM = $(results.reduce(function(prev, current) {
-      prev.push('<tr><td><input class="resultSelector" type="checkbox"></td><td class="popover-container"><a href="#" class="metaDataLink">');
-      prev.push(current);
-      prev.push('</a></td></tr>');
+      prev.push('<tr><td><input class="resultSelector" type="checkbox"></td><td class="popover-container">');
+      if (current.has_metadata){
+        prev.push('<a href="#" class="metaDataLink">');
+      }
+      prev.push(current.name);
+      if (current.has_metadata){
+        prev.push('</a>');
+      }
+      prev.push('</td></tr>');
       return prev;
     }, ['<tr><th><input id="resultSelectAll" type="checkbox"> Select All</th><th>Name</th></tr>']).join(''));
     resultDOM.find('#resultSelectAll').click(function() {
