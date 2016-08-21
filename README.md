@@ -231,24 +231,5 @@ privileges.
 Starting front end
 ------------------
 
-* Open the client folder in ndn-atmos
+Please see the README in client folder.
 
-* Checkout the ndn-js in the client folder. Use the link blow:
-
-<pre>
-  git clone http://github.com/named-data/ndn-js.git
-  cd ndn-js
-  git checkout v0.8.1
-</pre>
-
-* Start python simple server in the client folder (ndn-atmos/client)
-
-<pre>
-  python -m SimpleHTTPServer
-</pre>
-
-* Open project query page in a web browser
-
-<pre>
-     http://localhost:8000/query/query.html
-</pre>
