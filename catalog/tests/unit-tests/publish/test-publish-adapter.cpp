@@ -28,13 +28,11 @@
 
 namespace atmos{
 namespace tests{
-  using ndn::util::DummyClientFace;
-  using ndn::util::makeDummyClientFace;
 
   class PublishAdapterTest : public publish::PublishAdapter<std::string>
   {
   public:
-    PublishAdapterTest(const std::shared_ptr<ndn::util::DummyClientFace>& face,
+    PublishAdapterTest(std::shared_ptr<ndn::util::DummyClientFace>& face,
                        const std::shared_ptr<ndn::KeyChain>& keyChain,
                        std::shared_ptr<chronosync::Socket>& syncSocket)
       : publish::PublishAdapter<std::string>(face, keyChain, syncSocket)
@@ -109,7 +107,7 @@ namespace tests{
   {
   public:
     PublishAdapterFixture()
-      : face(makeDummyClientFace(io))
+      : face(std::make_shared<ndn::util::DummyClientFace>(io))
       , keyChain(new ndn::KeyChain())
       , databaseTable("cmip5")
       , publishAdapterTest1(face, keyChain, syncSocket)
@@ -196,7 +194,7 @@ namespace tests{
     }
 
   protected:
-    std::shared_ptr<DummyClientFace> face;
+    std::shared_ptr<ndn::util::DummyClientFace> face;
     std::shared_ptr<ndn::KeyChain> keyChain;
     std::shared_ptr<chronosync::Socket> syncSocket;
     std::vector<std::string> tableFields;

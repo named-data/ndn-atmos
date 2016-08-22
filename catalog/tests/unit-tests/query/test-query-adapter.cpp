@@ -28,8 +28,6 @@
 
 namespace atmos{
 namespace tests{
-  using ndn::util::DummyClientFace;
-  using ndn::util::makeDummyClientFace;
 
   class QueryAdapterTest : public query::QueryAdapter<std::string>
   {
@@ -169,7 +167,7 @@ namespace tests{
   {
   public:
     QueryAdapterFixture()
-      : face(makeDummyClientFace(io))
+      : face(std::make_shared<ndn::util::DummyClientFace>(io))
       , keyChain(new ndn::KeyChain())
       , databaseTable("cmip5")
       , queryAdapterTest1(face, keyChain, syncSocket)
@@ -250,7 +248,7 @@ namespace tests{
     }
 
   protected:
-    std::shared_ptr<DummyClientFace> face;
+    std::shared_ptr<ndn::util::DummyClientFace> face;
     std::shared_ptr<ndn::KeyChain> keyChain;
     std::shared_ptr<chronosync::Socket> syncSocket;
     std::string databaseTable;
