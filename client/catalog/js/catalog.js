@@ -118,7 +118,7 @@ var Atmos = (function() {
         var list = data.next;
         var last = data.lastComponent === true;
         callback(list.map(function(element) {
-          return field + element + (last ? "/" : "");
+          return field + element.name + (last ? "/" : "");
           //Don't add trailing slash for last component.
         }));
       });
@@ -208,7 +208,7 @@ var Atmos = (function() {
         }
         console.log("Autocomplete response", list);
         callback(list.map(function(element) {
-          return (path == "/" ? "/" : "") + element + "/";
+          return (path == "/" ? "/" : "") + element.name + "/";
         }));
       });
     });
